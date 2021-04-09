@@ -13,16 +13,19 @@ module FastScapeContext
   logical, dimension(:), allocatable :: bounds_bc
   integer :: step
   integer :: nGSStreamPowerLaw, nGSMarine
-  logical :: setup_has_been_run
+  logical :: setup_has_been_run, use_marine_dt_crit, enforce_marine_mass_cons, low_sealevel_at_shallow_sea
   double precision, target, dimension(:), allocatable :: h,u,vx,vy,length,a,erate,etot,catch,catch0,b,precip,kf,kd
   double precision, target, dimension(:), allocatable :: Sedflux, Fmix
   double precision, target, dimension(:), allocatable :: g
+  double precision, target, dimension(:), allocatable :: dh_dep, sedflux_shore
   double precision, target, dimension(:), allocatable :: p_mfd_exp
   double precision, dimension(:,:), pointer, contiguous :: h2, vx2, vy2, etot2, b2
   double precision :: xl, yl, dt, kfsed, m, n, kdsed, g1, g2, p
   double precision :: sealevel, poro1, poro2, zporo1, zporo2, ratio, layer, kdsea1, kdsea2
+  double precision :: dt_crit_marine
   integer, dimension(:), allocatable :: stack, ndon, rec
   integer, dimension(:,:), allocatable :: don
+  integer, dimension(:), allocatable :: rock_type ! 1 is basement, 2 is cont. sed, 3 is marine sed.
   logical :: runSPL, runAdvect, runDiffusion, runStrati, runUplift, runMarine
   real :: timeSPL, timeAdvect, timeDiffusion, timeStrati, timeUplift, timeMarine
   double precision, dimension(:,:), allocatable :: reflector
@@ -49,6 +52,10 @@ module FastScapeContext
     timeStrati = 0.
     timeMarine = 0.
     timeUplift = 0.
+    use_marine_dt_crit = .false.
+    dt_crit_marine = 1.d0
+    enforce_marine_mass_cons = .false.
+    low_sealevel_at_shallow_sea = .false.
 
   end subroutine Init
 
@@ -71,6 +78,8 @@ module FastScapeContext
     allocate (p_mfd_exp(nn))
     allocate (length(nn),a(nn),erate(nn),etot(nn),b(nn),Sedflux(nn),Fmix(nn),kf(nn),kd(nn))
     allocate (lake_depth(nn),hwater(nn),mrec(8,nn),mnrec(nn),mwrec(8,nn),mlrec(8,nn),mstack(nn))
+    allocate (dh_dep(nn),rock_type(nn),sedflux_shore(nn))
+
 
     h2(1:nx,1:ny) => h
     b2(1:nx,1:ny) => b
@@ -95,6 +104,9 @@ module FastScapeContext
     sealevel = 0.d0
     Fmix = 0.5d0
     lake_depth = 0.d0
+    dh_dep = 0.d0
+    rock_type = 1
+    sedflux_shore=0.d0
 
     runSPL = .false.
     runAdvect = .false.
@@ -148,6 +160,9 @@ module FastScapeContext
     if (allocated(g)) deallocate(g)
     if (allocated(p_mfd_exp)) deallocate(p_mfd_exp)
     if (allocated(bounds_bc)) deallocate(bounds_bc)
+    if (allocated(dh_dep)) deallocate(dh_dep)
+    if (allocated(rock_type)) deallocate(rock_type)
+    if (allocated(sedflux_shore)) deallocate(sedflux_shore)
 
     return
 
@@ -884,5 +899,115 @@ module FastScapeContext
       deallocate (flux)
 
     end subroutine compute_fluxes
+
+    !---------------------------------------------------------------
+
+    subroutine SetUseMarineDTCrit (dt_crit_marinep)
+
+    double precision, intent(in) :: dt_crit_marinep
+
+    use_marine_dt_crit = .true.
+    if (dt_crit_marinep <= 0.d0) use_marine_dt_crit = .false.
+
+    dt_crit_marine = dt_crit_marinep
+
+    return
+
+    end subroutine SetUseMarineDTCrit
+    !---------------------------------------------------------------
+
+    subroutine Copydh (dhp)
+
+    double precision, intent(out), dimension(*) :: dhp
+
+    dhp(1:nn) = dh_dep
+
+    return
+
+    end subroutine Copydh
+
+    !---------------------------------------------------------------
+
+    subroutine CopySedimentFluxShore (sedfluxshorep)
+
+    double precision, intent(out), dimension(*) :: sedfluxshorep
+
+    sedfluxshorep(1:nn)=sedflux_shore
+
+    return
+
+    end subroutine CopySedimentFluxShore
+
+    !---------------------------------------------------------------
+
+    subroutine CopyRockType (rocktype)
+
+    integer, intent(out), dimension(*) :: rocktype
+
+    rocktype(1:nn)=rock_type
+
+    return
+
+    end subroutine CopyRockType
+
+    !---------------------------------------------------------------
+
+    subroutine SetRockType (rocktype)
+
+    integer, intent(in), dimension(*) :: rocktype
+
+    rock_type = rocktype(1:nn)
+
+    return
+
+    end subroutine SetRockType
+
+    !---------------------------------------------------------------
+
+    subroutine SetEnforceMarineMassCons (enforce_marine_mass_consp)
+
+    logical, intent(in) :: enforce_marine_mass_consp
+
+    enforce_marine_mass_cons = enforce_marine_mass_consp
+
+    return
+
+    end subroutine SetEnforceMarineMassCons
+
+    !---------------------------------------------------------------
+
+    subroutine SetCorrectShallowSealevel (low_sealevel_at_shallow_seap)
+
+    logical, intent(in) :: low_sealevel_at_shallow_seap
+
+    low_sealevel_at_shallow_sea = low_sealevel_at_shallow_seap
+
+    return
+
+    end subroutine SetCorrectShallowSealevel
+
+    !---------------------------------------------------------------
+
+    subroutine SetCumulativeErosion (etotp)
+
+    double precision, intent(in), dimension(*) :: etotp
+
+    etot=etotp(1:nn)
+
+    return
+
+    end subroutine SetCumulativeErosion
+    !---------------------------------------------------------------
+
+    subroutine SetSealevel (sealevelp)
+
+    double precision, intent(in) :: sealevelp
+
+    sealevel=sealevelp
+
+    return
+
+    end
+    !---------------------------------------------------------------
 
   end module FastScapeContext

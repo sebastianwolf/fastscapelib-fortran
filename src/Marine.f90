@@ -8,16 +8,18 @@ subroutine Marine()
 
   implicit none
 
-  double precision, dimension(:), allocatable :: flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,mwater
+  double precision, dimension(:), allocatable :: flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,mwater,ht_i
   double precision, dimension(:), allocatable :: dhs, dhs1, F1, F2, zi, zo
   integer, dimension(:), allocatable :: flag,mmnrec,mmstack
   integer, dimension(:,:), allocatable :: mmrec
   double precision, dimension(:,:), allocatable :: mmwrec,mmlrec
-  double precision shelfslope,ratio1,ratio2,dx,dy
+  double precision shelfslope,ratio1,ratio2,dx,dy,f_mass_cons
   integer ij,ijr,ijk,k
+  double precision dt_marine
+  integer nstep_marine,imarine
 
   allocate (flux(nn),shelfdepth(nn),ht(nn),Fs(nn),dh(nn),dh1(nn),dh2(nn),Fmixt(nn),flag(nn))
-  allocate (dhs(nn),dhs1(nn),F1(nn),F2(nn),zi(nn),zo(nn))
+  allocate (dhs(nn),dhs1(nn),F1(nn),F2(nn),zi(nn),zo(nn),ht_i(nn))
 
   ! set nodes at transition between ocean and continent
   flag=0
@@ -101,6 +103,9 @@ subroutine Marine()
   ! scales flux by time step
   flux=flux/dt
 
+  ! store flux at shoreline in additional array sedflux array for visualisation purposes
+  sedflux_shore = flux
+
   ! stores initial height and fraction
   ht=h
   Fmixt=Fmix
@@ -108,14 +113,37 @@ subroutine Marine()
   !print*,'flux',minval(flux),sum(flux)/nx/ny,maxval(flux)
   !print*,'Fmix',minval(Fmix),sum(Fmix)/nx/ny,maxval(Fmix)
 
-  ! silt and sand coupling diffusion in ocean
-  call SiltSandCouplingDiffusion (h,Fmix,flux*Fs,flux*(1.d0-Fs), &
-  nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc)
+  ! calculate dt so that the flux is never going to exceed the active layer thickness
+  dt_marine = dt
+  nstep_marine=1
+  if (use_marine_dt_crit) call compute_dt_marine(flux,dt,dt_crit_marine,dt_marine,nstep_marine,layer,nn)
 
-  ! pure silt and sand during deposition/erosion
-  dh1=((h-ht)*Fmix+layer*(Fmix-Fmixt))*(1.d0-poro1)
-  dh2=((h-ht)*(1.d0-Fmix)+layer*(Fmixt-Fmix))*(1.d0-poro2)
+  do imarine = 1,nstep_marine
+    ht_i = h
+    Fmixt=Fmix
+    ! silt and sand coupling diffusion in ocean
+    call SiltSandCouplingDiffusion (h,Fmix,flux*Fs,flux*(1.d0-Fs), &
+    nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc)
+
+    ! pure silt and sand during deposition/erosion
+    dh1=((h-ht)*Fmix+layer*(Fmix-Fmixt))*(1.d0-poro1)
+    dh2=((h-ht)*(1.d0-Fmix)+layer*(Fmixt-Fmix))*(1.d0-poro2)
+  enddo
   dh=dh1+dh2
+
+  ! compute whether
+  f_mass_cons = sum(dh)/(sum(flux/(ratio1+ratio2))*dt)
+  if ((sum(flux)*dt) > 0.d0 .and. enforce_marine_mass_cons .and. f_mass_cons > 1.0d0) then
+      dh = dh/f_mass_cons
+      h = ht + dh
+      write(*,*)'Scaled marine deposits down according to f_mass_cons = ',f_mass_cons
+  endif
+  if (f_mass_cons < 1.d0  .and. enforce_marine_mass_cons) then
+      write(*,*)'Mass lost during marine diffusion: f_mass_cons = ',f_mass_cons
+  endif
+
+  ! store deposited material in dh_dep to be able to transfer this value to coupled thermo-mechanical code
+  dh_dep = dh
 
   ! >>>>>>>> compaction starts added by Jean (Dec 2018)
 
@@ -160,7 +188,10 @@ subroutine Marine()
   ! updates basement
   b=min(h,b)
 
-  deallocate (flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt)
+  ! update rock_type
+  where (dh > 0.0d0 .and. h <= sealevel ) rock_type = 3 ! marine sed.
+
+  deallocate (flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,ht_i)
 
   return
 
@@ -525,3 +556,37 @@ subroutine compaction (F1,F2,poro1,poro2,z1,z2,nn,dh,zi,zo)
   return
 
 end subroutine compaction
+
+!-----------------------------------------------------
+! added computation of timestep for marine deposition Sebastian Wolf
+subroutine compute_dt_marine(flux,dt,dt_crit_marine,dt_marine,nstep_marine,layer,nn)
+
+implicit none
+!==============================================================================!
+
+! arguments
+double precision, intent(in) :: dt_crit_marine, dt, layer
+integer, intent(in) :: nn
+double precision,dimension(nn),intent(in) :: flux
+integer, intent(out) :: nstep_marine
+double precision, intent(out) :: dt_marine
+double precision :: MaxSedflux, dt_max
+
+MaxSedflux = maxval(flux)
+if (MaxSedflux <= 0.d0) then
+    dt_max = dt
+else
+    dt_max = dt_crit_marine * layer / MaxSedflux
+endif
+
+if (dt_max >= dt) then
+    dt_marine = dt
+    nstep_marine = 1
+else
+    nstep_marine = ceiling(dt/dt_max)
+    dt_marine    = dt/dble(nstep_marine)
+endif
+write(*,*) 'Fastscape marine timestepping criterion used.'
+write(*,*) 'timestepping factor = ',dt_crit_marine,'computed dt used = ', dt_marine,'times ', nstep_marine
+
+end subroutine compute_dt_marine

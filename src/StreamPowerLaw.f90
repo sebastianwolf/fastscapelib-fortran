@@ -198,6 +198,10 @@ subroutine StreamPowerLaw ()
     erate=(ht-h)/dt
     Sedflux=ht-h
     !if (runMarine) where (h.lt.sealevel) Sedflux=0.d0
+    ! update rock type
+    where ( h > sealevel .and. h==b) rock_type = 1 !basement
+    where ( h > sealevel .and. h>b) rock_type = 2 !basement
+    where ( h > sealevel .and. erate < 0 ) rock_type = 2 !cont. sediments should be captured by above
 
     deallocate (ht,kfint,dh,hp,elev,water,lake_water_volume,lake_sediment,lake_sill)
 
@@ -392,6 +396,10 @@ subroutine StreamPowerLaw ()
       erate=(ht-h)/dt
       Sedflux=ht-h
       !if (runMarine) where (h.lt.sealevel) Sedflux=0.d0
+      ! update rock type
+      where ( h > sealevel .and. h==b) rock_type = 1 !basement
+      where ( h > sealevel .and. h>b) rock_type = 2 !basement
+      where ( h > sealevel .and. erate < 0 ) rock_type = 2 !cont. sediments should be captured by above
 
       deallocate (ht,kfint,dh,hp,elev,water,lake_water_volume,lake_sediment,lake_sill)
 

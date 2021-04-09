@@ -97,6 +97,11 @@
 ! as an array of dimension nn(=nx*ny)
 ! F is double precision of size nn
 
+! FastScape_Copy_dh (dh)
+! returns pure silt and sand during deposition.
+! as an array of dimension nn(=nx*ny)
+! dh is double precision of size nn
+
 ! FastScape_Copy_Etot (etot)
 ! returns the current cumulative erosion (in m)
 ! as an array of dimension nn(=nx*ny)
@@ -109,6 +114,11 @@
 ! returns the drainage area at each point (in m^2)
 ! as an array of dimension nn(=nx*ny)
 ! area is double precision of size nn
+
+! FastScape_Copy_Sediment_Flux_Shoreline (sedflux)
+! returns the sediment flux at the shoreline as given to the marine diffusion routine
+! as an array of dimension nn(=nx*ny)
+! sedflux is double precision of size nn
 
 ! FastScape_Copy_Erate (erate)
 ! returns the current erosion rate (in m/yr)
@@ -772,3 +782,149 @@ subroutine FastScape_Get_Fluxes (ttectonic_flux, eerosion_flux, bboundary_flux)
   return
 
 end subroutine FastScape_Get_Fluxes
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Copy_dh(dhp)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(inout), dimension(*) :: dhp
+
+call Copydh(dhp)
+
+return
+
+end subroutine FastScape_Copy_dh
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Copy_RockType(rocktype)
+
+use FastScapeContext
+
+implicit none
+
+integer, intent(inout), dimension(*) :: rocktype
+
+call CopyRockType(rocktype)
+
+return
+
+end subroutine FastScape_Copy_RockType
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_RockType(rocktype)
+
+use FastScapeContext
+
+implicit none
+
+integer, intent(in), dimension(*) :: rocktype
+
+call SetRockType(rocktype)
+
+return
+
+end subroutine FastScape_Set_RockType
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Copy_Sediment_Flux_Shoreline(sedfluxshorep)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(inout), dimension(*) :: sedfluxshorep
+
+call CopySedimentFluxShore(sedfluxshorep)
+
+return
+
+end subroutine FastScape_Copy_Sediment_Flux_Shoreline
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Cumulative_Erosion (etotp)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(in) :: etotp(*)
+
+call SetCumulativeErosion (etotp)
+
+return
+
+end subroutine FastScape_Set_Cumulative_Erosion
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_And_Use_Marine_dt_Crit (dt_crit_marinep)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(in) :: dt_crit_marinep
+
+call SetUseMarineDTCrit (dt_crit_marinep)
+
+return
+
+end subroutine FastScape_Set_And_Use_Marine_dt_Crit
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Enforce_Marine_Mass_cons (enforce_marine_mass_consp)
+
+use FastScapeContext
+
+implicit none
+
+logical, intent(in) :: enforce_marine_mass_consp
+
+call SetEnforceMarineMassCons (enforce_marine_mass_consp)
+
+return
+
+end subroutine FastScape_Set_Enforce_Marine_Mass_cons
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Correct_Shallow_Sealevel (low_sealevel_at_shallow_seap)
+
+use FastScapeContext
+
+implicit none
+
+logical, intent(in) :: low_sealevel_at_shallow_seap
+
+call SetCorrectShallowSealevel (low_sealevel_at_shallow_seap)
+
+return
+
+end subroutine FastScape_Set_Correct_Shallow_Sealevel
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Sealevel (sealevelp)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(in) :: sealevelp
+
+call SetSealevel (sealevelp)
+
+return
+
+end subroutine FastScape_Set_Sealevel
+
+!--------------------------------------------------------------------------
