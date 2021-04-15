@@ -928,3 +928,16 @@ return
 end subroutine FastScape_Set_Sealevel
 
 !--------------------------------------------------------------------------
+subroutine FastScape_Set_Tolerance_SPL (atol_SPLp)
+
+use FastScapeContext
+
+implicit none
+
+double precision, intent(in) :: atol_SPLp
+
+call SetAtolSPL (atol_SPLp)
+
+return
+
+end subroutine FastScape_Set_Tolerance_SPL

@@ -138,7 +138,7 @@ subroutine Marine()
       h = ht + dh
       write(*,*)'Scaled marine deposits down according to f_mass_cons = ',f_mass_cons
   endif
-  if (f_mass_cons < 1.d0  .and. enforce_marine_mass_cons) then
+  if ((sum(flux)*dt) > 0.d0 .and. f_mass_cons < 1.d0  .and. enforce_marine_mass_cons) then
       write(*,*)'Mass lost during marine diffusion: f_mass_cons = ',f_mass_cons
   endif
 
