@@ -1,8 +1,12 @@
+
+#include "Error.fpp"
+
 module FastScapeContext
 
   ! Context module for FastScape api
   ! should not be accessed or changed
   ! see API for name of routines and externally accessible variables
+  use FastScapeErrorCodes
 
   implicit none
 
@@ -13,7 +17,7 @@ module FastScapeContext
   logical, dimension(:), allocatable :: bounds_bc
   integer :: step
   integer :: nGSStreamPowerLaw, nGSMarine
-  logical :: setup_has_been_run, use_marine_dt_crit, enforce_marine_mass_cons, low_sealevel_at_shallow_sea
+  logical :: setup_has_been_run, enforce_marine_mass_cons, low_sealevel_at_shallow_sea, use_marine_aggradation
   double precision, target, dimension(:), allocatable :: h,u,vx,vy,length,a,erate,etot,catch,catch0,b,precip,kf,kd
   double precision, target, dimension(:), allocatable :: Sedflux, Fmix
   double precision, target, dimension(:), allocatable :: g
@@ -22,7 +26,6 @@ module FastScapeContext
   double precision, dimension(:,:), pointer, contiguous :: h2, vx2, vy2, etot2, b2
   double precision :: xl, yl, dt, kfsed, m, n, kdsed, g1, g2, p
   double precision :: sealevel, poro1, poro2, zporo1, zporo2, ratio, layer, kdsea1, kdsea2
-  double precision :: dt_crit_marine
   integer, dimension(:), allocatable :: stack, ndon, rec
   integer, dimension(:,:), allocatable :: don
   integer, dimension(:), allocatable :: rock_type ! 1 is basement, 2 is cont. sed, 3 is marine sed.
@@ -38,10 +41,13 @@ module FastScapeContext
   integer, dimension(:,:), allocatable :: mrec
   double precision, dimension(:,:), allocatable :: mwrec,mlrec
   double precision :: atol_SPL
+  double precision :: marine_aggradation_rate
+
 
   contains
 
   subroutine Init()
+    implicit none
 
     nx=0
     ny=0
@@ -53,26 +59,17 @@ module FastScapeContext
     timeStrati = 0.
     timeMarine = 0.
     timeUplift = 0.
-    use_marine_dt_crit = .false.
-    dt_crit_marine = 1.d0
-    enforce_marine_mass_cons = .false.
-    low_sealevel_at_shallow_sea = .false.
 
   end subroutine Init
 
   !---------------------------------------------------------------
 
   subroutine SetUp()
-
     implicit none
-
-    if (nx.eq.0) stop 'FastScapeSetup - You need to set nx first'
-    if (ny.eq.0) stop 'FastScapeSetup - You need to set ny first'
 
     nn=nx*ny
 
     call Destroy()
-
     allocate (h(nn),u(nn),vx(nn),vy(nn),stack(nn),ndon(nn),rec(nn),don(8,nn),catch0(nn),catch(nn),precip(nn))
     allocate (g(nn))
     allocate (bounds_bc(nn))
@@ -116,12 +113,18 @@ module FastScapeContext
     runMarine = .false.
     runUplift = .false.
 
+    enforce_marine_mass_cons = .false.
+    low_sealevel_at_shallow_sea = .false.
+    use_marine_aggradation = .false.
+
     nGSStreamPowerLaw = 0
     nGSMarine = 0
 
     setup_has_been_run = .true.
 
     atol_SPL = -1.d0
+
+    marine_aggradation_rate = -1.d0
 
     return
 
@@ -177,8 +180,6 @@ module FastScapeContext
 
     double precision, intent(out), dimension(*) :: hp
 
-    if (.not.setup_has_been_run) stop 'CopyH - You need to run SetUp first'
-
     hp(1:nn)=h
 
     return
@@ -190,8 +191,6 @@ module FastScapeContext
   subroutine CopyBasement (bp)
 
     double precision, intent(out), dimension(*) :: bp
-
-    if (.not.setup_has_been_run) stop 'CopyB - You need to run SetUp first'
 
     bp(1:nn)=b
 
@@ -205,8 +204,6 @@ module FastScapeContext
 
     double precision, intent(inout), dimension(*) :: etotp
 
-    if (.not.setup_has_been_run) stop 'CopyEtot - You need to run SetUp first'
-
     etotp(1:nn)=etot
 
     return
@@ -219,8 +216,6 @@ module FastScapeContext
 
     double precision, intent(inout), dimension(*) :: ap
 
-    if (.not.setup_has_been_run) stop 'CopyArea - You need to run SetUp first'
-
     ap(1:nn)=a
 
     return
@@ -232,8 +227,6 @@ module FastScapeContext
   subroutine CopyErate (eratep)
 
     double precision, intent(inout), dimension(*) :: eratep
-
-    if (.not.setup_has_been_run) stop 'CopyErate - You need to run SetUp first'
 
     eratep(1:nn)=erate
 
@@ -249,8 +242,6 @@ module FastScapeContext
     double precision, dimension(:), allocatable :: chi
     integer ij,ijk
     double precision dx,dy,a0
-
-    if (.not.setup_has_been_run) stop 'CopyChi - You need to run SetUp first'
 
     allocate (chi(nn))
     chi=0.d0
@@ -276,8 +267,6 @@ module FastScapeContext
     double precision, dimension(:), allocatable :: s
     double precision dx,dy
 
-    if (.not.setup_has_been_run) stop 'CopySlope - You need to run SetUp first'
-
     allocate (s(nn))
     dx=xl/(nx-1)
     dy=yl/(ny-1)
@@ -297,8 +286,6 @@ module FastScapeContext
     double precision, dimension(:), allocatable :: c
     double precision dx,dy
 
-    if (.not.setup_has_been_run) stop 'CopyCurvature - You need to run SetUp first'
-
     allocate (c(nn))
     dx=xl/(nx-1)
     dy=yl/(ny-1)
@@ -316,8 +303,6 @@ module FastScapeContext
 
     double precision, intent(inout), dimension(*) :: catchp
 
-    if (.not.setup_has_been_run) stop 'CopyCatchment - You need to run SetUp first'
-
     catchp(1:nn)=catch
 
     return
@@ -329,8 +314,6 @@ module FastScapeContext
   subroutine CopyF (Fmixp)
 
     double precision, intent(out), dimension(*) :: Fmixp
-
-    if (.not.setup_has_been_run) stop 'CopyF - You need to run SetUp first'
 
     Fmixp(1:nn) = Fmix
 
@@ -344,8 +327,6 @@ module FastScapeContext
 
     double precision, intent(out), dimension(*) :: Lp
 
-    if (.not.setup_has_been_run) stop 'CopyLakeDepth - You need to run SetUp first'
-
     Lp(1:nn) = lake_depth
 
     return
@@ -357,8 +338,6 @@ module FastScapeContext
   subroutine InitH (hp)
 
     double precision, intent(in), dimension(*) :: hp
-
-    if (.not.setup_has_been_run) stop 'InitH - You need to run SetUp first'
 
     h = hp(1:nn)
     b = h
@@ -372,8 +351,6 @@ module FastScapeContext
   subroutine InitF (Fmixp)
 
     double precision, intent(in), dimension(*) :: Fmixp
-
-    if (.not.setup_has_been_run) stop 'InitF - You need to run SetUp first'
 
     Fmix = Fmixp(1:nn)
 
@@ -585,7 +562,7 @@ module FastScapeContext
     implicit none
 
     integer, intent(in) :: jbc
-    character*4 :: cbc
+    character :: cbc*4
 
     bounds_ibc = jbc
 
@@ -719,7 +696,7 @@ module FastScapeContext
     integer nheader,nfooter,npart1,npart2
     character header*1024,footer*1024,part1*1024,part2*1024,nxc*6,nyc*6,nnc*12
     integer i,j
-    character*7 cstep
+    character cstep*7
     double precision dx,dy
 
     dx = xl/(nx - 1)
@@ -761,7 +738,7 @@ module FastScapeContext
 
       open(unit=77,file='VTK/Topography'//cstep//'.vtk',status='unknown',form='unformatted',access='direct', &
       recl=nheader+3*4*nn+nfooter+(npart1+1+npart2+4*nn) &
-      +(npart1+5+npart2+4*nn),convert='big_endian')
+      +(npart1+5+npart2+4*nn))
       write (77,rec=1) &
       header(1:nheader), &
       ((sngl(dx*(i-1)),sngl(dy*(j-1)),sngl(h(i+(j-1)*nx)*abs(vex)),i=1,nx),j=1,ny), &
@@ -773,7 +750,7 @@ module FastScapeContext
       if (vex.lt.0.d0) then
         open(unit=77,file='VTK/Basement'//cstep//'.vtk',status='unknown',form='unformatted',access='direct', &
         recl=nheader+3*4*nn+nfooter+(npart1+1+npart2+4*nn) &
-        +(npart1+5+npart2+4*nn),convert='big_endian')
+        +(npart1+5+npart2+4*nn))
         write (77,rec=1) &
         header(1:nheader), &
         ((sngl(dx*(i-1)),sngl(dy*(j-1)),sngl(b(i+(j-1)*nx)*abs(vex)),i=1,nx),j=1,ny), &
@@ -782,7 +759,7 @@ module FastScapeContext
         part1(1:npart1)//'HHHHH'//part2(1:npart2),sngl(f(1:nn))
         close(77)
         open(unit=77,file='VTK/SeaLevel'//cstep//'.vtk',status='unknown',form='unformatted',access='direct', &
-        recl=nheader+3*4*nn+nfooter+(npart1+2+npart2+4*nn),convert='big_endian')
+        recl=nheader+3*4*nn+nfooter+(npart1+2+npart2+4*nn))
         write (77,rec=1) &
         header(1:nheader), &
         ((sngl(dx*(i-1)),sngl(dy*(j-1)),sngl(sealevel*abs(vex)),i=1,nx),j=1,ny), &
@@ -837,7 +814,7 @@ module FastScapeContext
 
       ! updates erosion below each reflector
       do i= 1, ireflector
-        fields(:,10,i) = fields(:,10,i)+max(0.,reflector(:,i)-h)
+        fields(:,10,i) = fields(:,10,i)+max(0.d0,reflector(:,i)-h)
       enddo
 
       do i = 1, ireflector - 1
@@ -851,7 +828,7 @@ module FastScapeContext
       if (((step+1)/nfreq)*nfreq.eq.(step+1)) then
         if (((step+1)/nfreqref)*nfreqref.eq.(step+1)) ireflector = ireflector + 1
         call Strati (b, Fmix, nx, ny, xl, yl, reflector, nreflector, ireflector, step + 1, &
-        fields, nfield, vexref, dt*nfreqref, stack, rec, length, sealevel)
+        fields, nfield, vexref, dt*nfreqref, rec, sealevel)
       endif
 
     end subroutine run_Strati
@@ -903,20 +880,6 @@ module FastScapeContext
 
     end subroutine compute_fluxes
 
-    !---------------------------------------------------------------
-
-    subroutine SetUseMarineDTCrit (dt_crit_marinep)
-
-    double precision, intent(in) :: dt_crit_marinep
-
-    use_marine_dt_crit = .true.
-    if (dt_crit_marinep <= 0.d0) use_marine_dt_crit = .false.
-
-    dt_crit_marine = dt_crit_marinep
-
-    return
-
-    end subroutine SetUseMarineDTCrit
     !---------------------------------------------------------------
 
     subroutine Copydh (dhp)
@@ -1022,5 +985,29 @@ module FastScapeContext
     return
 
     end subroutine SetAtolSPL
+
+    !---------------------------------------------------------------
+
+    subroutine UseMarineAggradation (use_marine_aggp)
+
+    logical, intent(in) :: use_marine_aggp
+
+    use_marine_aggradation = use_marine_aggp
+
+    return
+
+    end subroutine UseMarineAggradation
+
+    !---------------------------------------------------------------
+
+    subroutine SetMarineAggradationRate (marine_agg_ratep)
+
+    double precision, intent(in) ::marine_agg_ratep
+
+    marine_aggradation_rate = marine_agg_ratep
+
+    return
+
+    end subroutine SetMarineAggradationRate
 
   end module FastScapeContext

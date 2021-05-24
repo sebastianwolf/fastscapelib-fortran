@@ -1,4 +1,5 @@
-subroutine Marine()
+#include "Error.fpp"
+subroutine Marine(ierr)
 
   ! Marine transport component
   ! using silt and sand coupling diffusion solver
@@ -8,18 +9,17 @@ subroutine Marine()
 
   implicit none
 
-  double precision, dimension(:), allocatable :: flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,mwater,ht_i
+  double precision, dimension(:), allocatable :: flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,mwater
   double precision, dimension(:), allocatable :: dhs, dhs1, F1, F2, zi, zo
   integer, dimension(:), allocatable :: flag,mmnrec,mmstack
   integer, dimension(:,:), allocatable :: mmrec
   double precision, dimension(:,:), allocatable :: mmwrec,mmlrec
   double precision shelfslope,ratio1,ratio2,dx,dy,f_mass_cons
   integer ij,ijr,ijk,k
-  double precision dt_marine
-  integer nstep_marine,imarine
+  integer, intent(inout):: ierr
 
   allocate (flux(nn),shelfdepth(nn),ht(nn),Fs(nn),dh(nn),dh1(nn),dh2(nn),Fmixt(nn),flag(nn))
-  allocate (dhs(nn),dhs1(nn),F1(nn),F2(nn),zi(nn),zo(nn),ht_i(nn))
+  allocate (dhs(nn),dhs1(nn),F1(nn),F2(nn),zi(nn),zo(nn))
 
   ! set nodes at transition between ocean and continent
   flag=0
@@ -56,7 +56,7 @@ subroutine Marine()
   allocate (mmrec(8,nn),mmnrec(nn),mmwrec(8,nn),mmlrec(8,nn),mmstack(nn),mwater(nn))
 
   call find_mult_rec (h,rec,stack,mwater,mmrec,mmnrec,mmwrec,mmlrec,mmstack,nx,ny,dx,dy,0.d0,p_mfd_exp, &
-    bounds_i1, bounds_i2, bounds_j1, bounds_j2, bounds_xcyclic, bounds_ycyclic)
+    bounds_i1, bounds_i2, bounds_j1, bounds_j2, bounds_xcyclic, bounds_ycyclic, ierr)
 
   !print*,count(flux>0.and.mmnrec==0),count(flux>0),count(mmstack==0)
 
@@ -103,7 +103,8 @@ subroutine Marine()
   ! scales flux by time step
   flux=flux/dt
 
-  ! store flux at shoreline in additional array sedflux array for visualisation purposes
+  ! store flux at shoreline in additional array for visualisation purposes,
+  ! and to compute timestepping criterion based on the maximum sediment flux at the shoreline.
   sedflux_shore = flux
 
   ! stores initial height and fraction
@@ -113,25 +114,18 @@ subroutine Marine()
   !print*,'flux',minval(flux),sum(flux)/nx/ny,maxval(flux)
   !print*,'Fmix',minval(Fmix),sum(Fmix)/nx/ny,maxval(Fmix)
 
-  ! calculate dt so that the flux is never going to exceed the active layer thickness
-  dt_marine = dt
-  nstep_marine=1
-  if (use_marine_dt_crit) call compute_dt_marine(flux,dt,dt_crit_marine,dt_marine,nstep_marine,layer,nn)
+  ! silt and sand coupling diffusion in ocean
+  call SiltSandCouplingDiffusion (h,Fmix,flux*Fs,flux*(1.d0-Fs), &
+  nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc,ierr);FSCAPE_CHKERR(ierr)
 
-  do imarine = 1,nstep_marine
-    ht_i = h
-    Fmixt=Fmix
-    ! silt and sand coupling diffusion in ocean
-    call SiltSandCouplingDiffusion (h,Fmix,flux*Fs,flux*(1.d0-Fs), &
-    nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc)
-
-    ! pure silt and sand during deposition/erosion
-    dh1=((h-ht)*Fmix+layer*(Fmix-Fmixt))*(1.d0-poro1)
-    dh2=((h-ht)*(1.d0-Fmix)+layer*(Fmixt-Fmix))*(1.d0-poro2)
-  enddo
+  ! pure silt and sand during deposition/erosion
+  dh1=((h-ht)*Fmix+layer*(Fmix-Fmixt))*(1.d0-poro1)
+  dh2=((h-ht)*(1.d0-Fmix)+layer*(Fmixt-Fmix))*(1.d0-poro2)
   dh=dh1+dh2
 
-  ! compute whether
+  ! compute whether Marine diffusion was mass conserving. This might not be the case in basins
+  ! with a lot of "underwater" topgraphy and little sediment input
+  ! printing is only done if option enforce_marine_mass_cons is used.
   f_mass_cons = sum(dh)/(sum(flux/(ratio1+ratio2))*dt)
   if ((sum(flux)*dt) > 0.d0 .and. enforce_marine_mass_cons .and. f_mass_cons > 1.0d0) then
       dh = dh/f_mass_cons
@@ -143,6 +137,7 @@ subroutine Marine()
   endif
 
   ! store deposited material in dh_dep to be able to transfer this value to coupled thermo-mechanical code
+  ! where compaction can be applied if necessary.
   dh_dep = dh
 
   ! >>>>>>>> compaction starts added by Jean (Dec 2018)
@@ -191,7 +186,7 @@ subroutine Marine()
   ! update rock_type
   where (dh > 0.0d0 .and. h <= sealevel ) rock_type = 3 ! marine sed.
 
-  deallocate (flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt,ht_i)
+  deallocate (flux,shelfdepth,ht,Fs,dh,dh1,dh2,Fmixt)
 
   return
 
@@ -200,22 +195,25 @@ end subroutine Marine
 !----------------------------------------------------------------------------------
 
 subroutine SiltSandCouplingDiffusion (h,f,Q1,Q2,nx,ny,dx,dy,dt, &
-  sealevel,L,kdsea1,kdsea2,niter,flag,ibc)
+  sealevel,L,kdsea1,kdsea2,niter,flag,ibc,ierr)
+
+  use FastScapeErrorCodes
 
   implicit none
 
   ! define the parameters
+  integer i,j,ij,ipj,imj,ijp,ijm,nn,nx,ny,niter,ibc
   double precision h(nx*ny),f(nx*ny),Q1(nx*ny),Q2(nx*ny)
   double precision, dimension(:), allocatable :: hp,fp,ht,ft,hhalf,fhalf,fhalfp
   double precision, dimension(:), allocatable :: diag,sup,inf,rhs,res,tint
   integer flag(nx*ny)
 
-  integer i,j,ij,ipj,imj,ijp,ijm,nn,nx,ny,niter,ibc
   double precision dx,dy,dt,sealevel,L,kdsea1,kdsea2
   double precision K1,K2,tol,err1,err2
   double precision Ap,Bp,Cp,Dp,Ep,Mp,Np
+  integer, intent(inout):: ierr
 
-  character*4 cbc
+  character cbc*4
 
   write (cbc,'(i4)') ibc
 
@@ -514,8 +512,8 @@ subroutine SiltSandCouplingDiffusion (h,f,Q1,Q2,nx,ny,dx,dy,dt, &
     !print*,'niter',niter,minval(h-hp),sum(h-hp)/nn,maxval(h-hp),err1
 
     if (niter.gt.1000) then
-      print*,'Multi-lithology diffusion not convergning; decrease time step'
-      stop
+      FSCAPE_RAISE_MESSAGE('Marine error: Multi-lithology diffusion not converging; decrease time step',ERR_NotConverged,ierr)
+      FSCAPE_CHKERR(ierr)
     endif
 
     ! end of iteration
@@ -558,7 +556,9 @@ subroutine compaction (F1,F2,poro1,poro2,z1,z2,nn,dh,zi,zo)
 end subroutine compaction
 
 !-----------------------------------------------------
-! added computation of timestep for marine deposition Sebastian Wolf
+! added computation of timestep for marine deposition
+! this functionality allows to run a loop on SiltSandCouplingDiffusion,
+! so that the timestep can be maximized. This function is not used atm.
 subroutine compute_dt_marine(flux,dt,dt_crit_marine,dt_marine,nstep_marine,layer,nn)
 
 implicit none
@@ -590,3 +590,151 @@ write(*,*) 'Fastscape marine timestepping criterion used.'
 write(*,*) 'timestepping factor = ',dt_crit_marine,'computed dt used = ', dt_marine,'times ', nstep_marine
 
 end subroutine compute_dt_marine
+
+
+!-----------------------------------------------------
+! Mass conserving aggradation of marine domain with sediments arriving at the shoreline.
+subroutine MarineAggradation(ierr)
+
+use FastScapeContext
+
+implicit none
+!==============================================================================!
+double precision, dimension(:), allocatable :: flux,shelfdepth,ht,Fs,dh,Fmixt
+double precision ratio1,ratio2,dx,dy,fill_level
+integer ij,ijr,ijk,i,iter_counter
+double precision bottom,top,error,tol,vol,vol_tester
+integer, intent(inout):: ierr
+
+allocate (flux(nn),shelfdepth(nn),ht(nn),Fs(nn),dh(nn),Fmixt(nn))
+
+! arguments
+dx=xl/(nx-1)
+dy=yl/(ny-1)
+
+! computing flux from continental erosion
+flux=0.d0
+where (h.gt.sealevel) flux=Sedflux
+do ij=nn,1,-1
+  ijk=stack(ij)
+  ijr=rec(ijk)
+  if (ijr.ne.ijk.and.h(ijk).gt.sealevel) then
+    flux(ijr)=flux(ijr)+flux(ijk)
+  endif
+enddo
+! here the integral of erosion/deposition has been done
+! and distributed as flux to ocean
+where (h.gt.sealevel) flux=0.d0
+
+! set nodes at transition between ocean and continent
+!where (flux.gt.tiny(flux)) flag=1
+
+! decompact volume of pure solid phase (silt and sand) from onshore
+ratio1=ratio/(1.d0-poro1)
+ratio2=(1.d0-ratio)/(1.d0-poro2)
+! total volume of silt and sand after decompaction
+flux=flux*(ratio1+ratio2)
+
+! silt fraction (after decompaction) in shelf
+Fs=0.d0
+where (flux.gt.0.d0) Fs=ratio1/(ratio1+ratio2)
+
+! scales flux by time step
+flux=flux/dt
+
+! store flux at shoreline in additional array for visualisation purposes,
+! and to compute timestepping criterion based on the maximum sediment flux at the shoreline.
+sedflux_shore = flux
+ht  = h
+if (marine_aggradation_rate < 0.d0) then
+  if (sum(sedflux_shore) > 0.d0) then
+
+    vol           = sum(sedflux_shore*dt)*dx*dy
+    tol           = 1e-4*dx*dy      ! 0.1 mm on average
+    fill_level    = sealevel        ! initialise fill_level to be sealevel
+    top           = maxval(h)       ! initially top and bottom are the model max and min
+    bottom        = minval(h)
+    iter_counter  = 0
+    error         = 2*tol
+
+    while_loop: do while (abs(error) >= abs(tol))
+      iter_counter = iter_counter + 1
+      ht  = h
+
+      ! Fill the tester to fill_level
+      do i=1,nn
+        if (ht(i) <= fill_level) then
+          ht(i)  = fill_level
+        end if
+      end do
+
+      vol_tester  = sum(ht-h)*dx*dy
+      error       = vol_tester - vol
+
+      ! testing error and adjusting fill level
+      if (error >= 0.d0) then ! fill level was too high
+        top = fill_level
+        bottom = bottom
+        fill_level = (top+bottom)/2
+      else ! fill level was too low
+        top = top
+        bottom = fill_level
+        fill_level = (top+bottom)/2
+      end if
+
+      ! save guard to prevent filling above sealevel
+      if (fill_level > sealevel) then
+        fill_level = sealevel
+        write(*,*)'Basin filled up to sealevel. Stopping aggradation at sealevel.'
+        exit while_loop
+      endif
+
+      if (iter_counter >=10000) then
+        write(*,'(a)')'------ FastScape mass conserving marine aggradation failed ------'
+        write(*,'(a,es15.4,a,es15.4)')'average error [mm]:',abs(error)/(dx*dy),' average tol [mm]:',abs(tol)/(dx*dy)
+        write(*,'(a,i6,a)')'sed routine needed',iter_counter,' iterations'
+        write(*,'(a,f8.4)')'percent of deposited sed: ',vol_tester/vol * 100
+        write(*,'(a,f13.3,a,f13.3)')'fill_level = ',fill_level,', sealevel = ',sealevel
+        write(*,'(a,f8.4)')'sum sedflux: ',sum(sedflux_shore)
+        FSCAPE_RAISE_MESSAGE('Marine error: Mass conserving filling with available sediment not converged',ERR_NotConverged,ierr)
+        FSCAPE_CHKERR(ierr)
+      end if
+
+    end do while_loop
+
+    write(*,'(a)')'------ FastScape mass conserving marine aggradation used ------'
+    write(*,'(a,es15.4,a,es15.4)')'average error [mm]:',abs(error)/(dx*dy),' average tol [mm]:',abs(tol)/(dx*dy)
+    write(*,'(a,i6,a)')'sed routine needed',iter_counter,' iterations'
+    write(*,'(a,f8.4)')'percent of deposited sed: ',vol_tester/vol * 100
+    write(*,'(a,f13.3,a,f13.3)')'fill_level = ',fill_level,', sealevel = ',sealevel
+  end if
+else if (marine_aggradation_rate > 0.d0) then
+  ! Filling with constant aggradation rate up to sealevel
+  do i=1,nn
+    if (ht(i) <= sealevel) then
+      ht(i)  = ht(i) + marine_aggradation_rate*dt
+      if (ht(i) > sealevel) ht(i) = sealevel
+    end if
+  end do
+  write(*,'(a)')'------ FastScape marine filling with constant aggradation rate used ------'
+  write(*,'(a,f13.6)')'Aggradation rate = ',marine_aggradation_rate
+end if
+
+h = ht
+
+dh = ht-h
+
+dh_dep = dh
+
+etot=etot+ht-h
+erate=erate+(ht-h)/dt
+
+! updates basement
+b=min(h,b)
+
+! update rock_type
+where (dh > 0.0d0 .and. h <= sealevel ) rock_type = 3 ! marine sed.
+
+deallocate (flux,shelfdepth,ht,Fs,dh,Fmixt)
+
+end subroutine MarineAggradation

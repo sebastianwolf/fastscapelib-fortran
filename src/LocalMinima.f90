@@ -1,7 +1,8 @@
-subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy)
+#include "Error.fpp"
+subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,ierr)
 
   ! subroutine to compute and remove local inima by recomputing the receiver connectivty
-  ! using Guillaume Cordonnier's algorithm as helped by Benoit Bovy and debuged with Jean Braun
+  ! using Guillaume Cordonnier s algorithm as helped by Benoit Bovy and debuged with Jean Braun
   ! This is (at first) a fortran translation of a python routine provided to me by Gullaume
   ! on October 24 2017
 
@@ -45,6 +46,7 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy)
   integer nbasins,basin0,nconn,nconn_max,tree_size
 
   integer nn,k,nlocmin
+  integer, intent(inout):: ierr
 
   !continuous_flow = .true.
   continuous_flow = .false.
@@ -91,7 +93,7 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy)
   allocate (tree(nbasins-1))
   tree_size=0
 
-  call mst_kruskal(conn_weights,conn_basins,nbasins,nconn,tree,tree_size)
+  call mst_kruskal(conn_weights,conn_basins,nbasins,nconn,tree,tree_size,ierr);FSCAPE_CHKERR(ierr)
 
   allocate (sills(nbasins,2))
   allocate (basin_stack(nbasins))
@@ -101,7 +103,7 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy)
 
   if (.not.continuous_flow) then
     if (continuous_flow_v2) then
-      call correct_receivers_v2 (rec,length,outlets,conn_basins,conn_nodes,tree,h,nx,ny,dx,dy, &
+      call correct_receivers_v2 (rec,length,outlets,conn_basins,conn_nodes,tree,nx,ny,dx,dy, &
       nbasins,nconn,tree_size)
     else
       call correct_receivers (rec,length,outlets,conn_basins,conn_nodes,tree,h,nx,ny,dx,dy, &
@@ -148,8 +150,8 @@ subroutine compute_basins (stack,rec,basins,outlets,n,nbasins)
 
   implicit none
 
-  integer stack(n),rec(n),basins(n),outlets(n)
   integer n,nbasins
+  integer stack(n),rec(n),basins(n),outlets(n)
   integer ibasins,i,istack,irec
 
   ibasins=0
@@ -214,12 +216,12 @@ subroutine connect_basins (nbasins,basins,outlets,rec,stack,active_nodes,h,nx,ny
 
   implicit none
 
+  integer nx,ny,n,basin0,nconn,nconn_max
   integer nbasins,basins(nx*ny),outlets(nx*ny),rec(nx*ny),stack(nx*ny)
   integer conn_basins(nconn_max,2),conn_nodes(nconn_max,2)
   double precision conn_weights(nconn_max)
   logical active_nodes(nx*ny)
   double precision h(nx*ny)
-  integer nx,ny,n,basin0,nconn,nconn_max
 
   integer i,j,istack,iused,irec,iistack,iiused,ii(8),jj(8),ki,kj,k
   integer ineighbor,ineighbor_basin,ineighbor_outlet
@@ -330,7 +332,7 @@ end subroutine connect_basins
 
 !----------------------
 
-subroutine mst_kruskal(conn_weights, conn_basins, nbasins, nconn, mstree, mstree_size)
+subroutine mst_kruskal(conn_weights, conn_basins, nbasins, nconn, mstree, mstree_size,ierr)
 
   !kruskal algorithm to compute a Minimal Spanning Tree
 
@@ -344,19 +346,20 @@ subroutine mst_kruskal(conn_weights, conn_basins, nbasins, nconn, mstree, mstree
 
   implicit none
 
+  integer nbasins,nconn
   double precision conn_weights(nconn)
   integer conn_basins(nconn,2)
   integer mstree(nbasins-1)
-  integer nbasins,nconn
 
   integer, dimension(:), allocatable :: sort_id,parent,rank
   integer mstree_size,eid,eeid,f0,f1,b0,b1
+  integer, intent(inout):: ierr
 
   allocate (sort_id(nconn))
   mstree_size = 0
 
   ! sort edges
-  call loc_min_3_indexx (nconn,conn_weights,sort_id)
+  call loc_min_3_indexx (nconn,conn_weights,sort_id,ierr);FSCAPE_CHKERR(ierr)
   !print*,'weights',conn_weights(sort_id)
 
   allocate (parent(nbasins),rank(nbasins))
@@ -599,7 +602,7 @@ end subroutine correct_receivers
 !----------------------
 
 subroutine correct_receivers_v2(receivers,dist2receivers,outlets,conn_basins, &
-  conn_nodes,tree,elevation,nx,ny,dx,dy,nbasins,nconn,ntree)
+  conn_nodes,tree,nx,ny,dx,dy,nbasins,nconn,ntree)
 
   !Correct receivers: correct the receivers according the the tree order
 
@@ -610,7 +613,6 @@ subroutine correct_receivers_v2(receivers,dist2receivers,outlets,conn_basins, &
   !conn_basins: array of pairs of basins (b0, b1) that share a pass
   !conn_nodes: array of pairs (p0, p1) : nodes of the passes for each pair of basin
   !tree: id of the connections in the minimal spanning tree
-  !elevation: elevation of each node
   !nx size of the demin x direction
   !dx, dy: size of a cell
 
@@ -622,7 +624,7 @@ subroutine correct_receivers_v2(receivers,dist2receivers,outlets,conn_basins, &
   integer receivers(nx*ny),outlets(nbasins),tree(ntree)
   integer conn_basins(nconn,2),conn_nodes(nconn,2)
   integer next_node,cur_node,rcv_next_node
-  double precision dist2receivers(nx*ny),elevation(nx*ny)
+  double precision dist2receivers(nx*ny)
   double precision dx,dy,ddx,ddy,previous_dist,tmp
 
   integer i,ii,node_from,node_to,outlet_from
@@ -677,10 +679,10 @@ subroutine update_fake_topography ( sills, basin_stack, basins, elevation, nx, n
 
   implicit none
 
+  integer nx,ny,nn,nbasins,i_sill, parse_begin, parse_end, i_node
   integer sills(nbasins, 2), basin_stack(nbasins)
   integer basins(nx*ny)
   double precision elevation(nx*ny)
-  integer nx,ny,nn,nbasins,i_sill, parse_begin, parse_end, i_node
   integer ii(8),jj(8), i_b, b, nb_dir_i, i_nb, j_nb, i_neighbor
   double precision dx, dy, slope, dist_x, dist_y, new_height
 
@@ -768,8 +770,8 @@ subroutine UnionFindInit (parent,rank,n)
 
   implicit none
 
-  integer parent(n),rank(n)
   integer n,i
+  integer parent(n),rank(n)
 
   do i=1,n
     parent(i)=i
@@ -785,8 +787,8 @@ subroutine DoUnion (x,y,parent,rank,n)
 
   implicit none
 
-  integer parent(n),rank(n)
   integer n,x,y
+  integer parent(n),rank(n)
   integer xroot,yroot
 
   call UnionFind(x,parent,n,xroot)
@@ -838,10 +840,10 @@ subroutine loc_min_3_find_receivers (h,rec,length,bc,nx,ny,dx,dy)
 
   implicit none
 
+  integer nx,ny
   double precision h(nx*ny),length(nx*ny),dx,dy
   integer rec(nx*ny)
   logical bc(nx*ny)
-  integer nx,ny
 
   integer i,j,ij,ii,jj,iii,jjj,ijk
   double precision smax,l,slope
@@ -925,7 +927,7 @@ end subroutine loc_min_3_find_stack
 
 !----------------------
 
-recursive subroutine loc_min_3_find_stack_recursively  (ij,donor,ndon,nn,stack,nstack)
+recursive subroutine loc_min_3_find_stack_recurs  (ij,donor,ndon,nn,stack,nstack)
 
 implicit none
 
@@ -938,15 +940,16 @@ do k=1,ndon(ij)
   ijk=donor(k,ij)
   nstack=nstack+1
   stack(nstack)=ijk
-  call loc_min_3_find_stack_recursively (ijk,donor,ndon,nn,stack,nstack)
+  call loc_min_3_find_stack_recurs (ijk,donor,ndon,nn,stack,nstack)
 enddo
 
-return
-end subroutine loc_min_3_find_stack_recursively
+end subroutine loc_min_3_find_stack_recurs
 
 !-----------------------
 
-subroutine loc_min_3_indexx(n,arr,indx)
+subroutine loc_min_3_indexx(n,arr,indx,ierr)
+
+  use FastScapeErrorCodes
 
   implicit none
 
@@ -955,6 +958,7 @@ subroutine loc_min_3_indexx(n,arr,indx)
   parameter (M=7,NSTACK=50)
   integer i,indxt,ir,itemp,j,jstack,k,l,istack(NSTACK)
   double precision a
+  integer, intent(inout):: ierr
 
   do j=1,n
     indx(j)=j
@@ -1029,7 +1033,9 @@ subroutine loc_min_3_indexx(n,arr,indx)
     indx(j)=indxt
     jstack=jstack+2
 
-    if(jstack.gt.NSTACK) stop 'NSTACK too small in loc_min_3_indexx'
+    if(jstack.gt.NSTACK) then
+      FSCAPE_RAISE_MESSAGE('loc_min_3_indexx error: NSTACK too small',ERR_Default,ierr);FSCAPE_CHKERR(ierr)
+    end if
 
     if(ir-i+1.ge.j-l)then
       istack(jstack)=ir

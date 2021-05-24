@@ -13,6 +13,7 @@ set(FASTSCAPELIB_SRC_FILES
   ${FASTSCAPELIB_SRC_DIR}/Diffusion.f90
   ${FASTSCAPELIB_SRC_DIR}/FastScape_api.f90
   ${FASTSCAPELIB_SRC_DIR}/FastScape_ctx.f90
+  ${FASTSCAPELIB_SRC_DIR}/FastScapeErrorCodes.f90
   ${FASTSCAPELIB_SRC_DIR}/LocalMinima.f90
   ${FASTSCAPELIB_SRC_DIR}/Marine.f90
   ${FASTSCAPELIB_SRC_DIR}/Strati.f90
@@ -45,17 +46,23 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -cpp")
 # =====
 
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Flang|GNU")
-    set(dialect "-ffree-form -std=f2008 -fimplicit-none")
+    set(dialect "-ffree-form -std=f2008 -fimplicit-none -fall-intrinsics -ffree-line-length-none")
+    set(ioflags "-fconvert=big-endian")
+    set(f77flags "-std=legacy -ffixed-form")
     set(bounds "-fbounds-check")
-    set(warnings "-Wall -Wno-unused-dummy-argument")
+    set(warnings "-Wall")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     set(dialect "-stand f08 -free -implicitnone")
+    set(ioflags "-convert big_endian")
+    set(f77flags "-stand none -fixed")
     set(bounds "-check bounds")
     set(warnings "-warn all")
 endif()
 if(CMAKE_Fortran_COMPILER_ID MATCHES "PGI")
     set(dialect "-Mfreeform -Mdclchk -Mstandard -Mallocatable=03")
+    set(ioflags "")
+    set(f77flags "-Mfixed")
     set(bounds "-C")
     set(warnings "-Wall")
 endif()
@@ -63,8 +70,15 @@ endif()
 set(CMAKE_Fortran_FLAGS_DEBUG
   "${CMAKE_Fortran_FLAGS_DEBUG} ${bounds} ${warnings}")
 
-# TODO: check dialect flags and other release optimization flags
-# set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${dialect}")
+# let F2PY (scikit-build) configure flags for F77 and F90 source
+if(NOT SKBUILD)
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${dialect} ${ioflags}")
+endif()
+
+# override flags for old-school F77 files
+set_source_files_properties(${FLEXURE_SRC_DIR}/four1.f PROPERTIES COMPILE_FLAGS ${f77flags})
+set_source_files_properties(${FLEXURE_SRC_DIR}/realft.f PROPERTIES COMPILE_FLAGS ${f77flags})
+set_source_files_properties(${FLEXURE_SRC_DIR}/sinft.f PROPERTIES COMPILE_FLAGS ${f77flags})
 
 # Build options
 # =============
