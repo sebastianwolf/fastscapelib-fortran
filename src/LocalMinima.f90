@@ -1036,7 +1036,8 @@ subroutine loc_min_3_indexx(n,arr,indx,ierr)
     jstack=jstack+2
 
     if(jstack.gt.NSTACK) then
-      FSCAPE_RAISE_MESSAGE('loc_min_3_indexx error: NSTACK too small',ERR_Default,ierr);FSCAPE_CHKERR(ierr)
+      ierr=1
+      FSCAPE_CHKERR(ierr)
     end if
 
     if(ir-i+1.ge.j-l)then

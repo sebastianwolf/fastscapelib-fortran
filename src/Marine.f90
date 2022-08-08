@@ -512,7 +512,7 @@ subroutine SiltSandCouplingDiffusion (h,f,Q1,Q2,nx,ny,dx,dy,dt, &
     !print*,'niter',niter,minval(h-hp),sum(h-hp)/nn,maxval(h-hp),err1
 
     if (niter.gt.1000) then
-      FSCAPE_RAISE_MESSAGE('Marine error: Multi-lithology diffusion not converging; decrease time step',ERR_NotConverged,ierr)
+      ierr=1
       FSCAPE_CHKERR(ierr)
     endif
 
@@ -696,7 +696,7 @@ if (marine_aggradation_rate < 0.d0) then
         write(*,'(a,f8.4)')'percent of deposited sed: ',vol_tester/vol * 100
         write(*,'(a,f13.3,a,f13.3)')'fill_level = ',fill_level,', sealevel = ',sealevel
         write(*,'(a,f8.4)')'sum sedflux: ',sum(sedflux_shore)
-        FSCAPE_RAISE_MESSAGE('Marine error: Mass conserving filling with available sediment not converged',ERR_NotConverged,ierr)
+        ierr=1
         FSCAPE_CHKERR(ierr)
       end if
 

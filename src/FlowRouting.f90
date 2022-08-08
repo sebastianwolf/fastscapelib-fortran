@@ -299,7 +299,8 @@ subroutine find_mult_rec (h,rec0,stack0,water,rec,nrec,wrec,lrec,stack,nx,ny,dx,
   deallocate (ndon,don,vis,parse,h0)
 
   if (nstack.ne.nn) then
-    FSCAPE_RAISE_MESSAGE('Find_mult_rec: error in stack',ERR_Default,ierr);FSCAPE_CHKERR(ierr)
+    ierr=1
+    FSCAPE_CHKERR(ierr)
   end if
 
   return

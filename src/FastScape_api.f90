@@ -181,16 +181,16 @@ subroutine FastScape_Setup(ierr)
   ierr=0
 
   if (nx.eq.0) then
-    FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be zero',ERR_ParameterInvalid,ierr)
+     ierr=1
   end if
   if (nx.le.0) then
-     FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be negative',ERR_ParameterOutOfRange,ierr)
+     ierr=1
   end if
   if (ny.eq.0) then
-     FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be zero',ERR_ParameterInvalid,ierr)
+     ierr=1
   end if
   if (ny.le.0) then
-    FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be negative',ERR_ParameterOutOfRange,ierr)
+     ierr=1
   end if
   FSCAPE_CHKERR(ierr) ! Call FSCAPE_CHKERR() so that all possible exceptions above will be displayed
 

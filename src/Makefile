@@ -1,9 +1,19 @@
 .SUFFIXES:.out .o .s .c .F .f .f90 .F90 .f95 .e .r .y .yr .ye .l .p .sh .csh .h
 
-ifneq ($(findstring geodyn,$(HOSTNAME)),)
+COMPILER = "intel"
+
+ifeq ($(COMPILER),"intel")
+  F90 = mpif90
+  FC_FLAGS = -c -f90=ifort -qopenmp -m64 -w -fpp -mkl=sequential
+  F90_OPTIONS = $(FC_FLAGS) -g -O0
+endif
+
+ifeq ($(COMPILER),"pgi")
   F90 = mpif90
   F90_OPTIONS = -O -Mfreeform -Mdclchk -Mstandard -Mpreprocess
-else
+endif
+
+ifeq ($(COMPILER),"gnu")
   F90 = gfortran
   CC = gcc-10
   F90_OPTIONS = -ffree-form -ffree-line-length-none -fimplicit-none -fbounds-check -Wall -Wno-unused-dummy-argument -cpp -fall-intrinsics -fallow-argument-mismatch -fconvert=big-endian # needed to remove -std=f2008 -ffree-line-length-none is required for long macros
