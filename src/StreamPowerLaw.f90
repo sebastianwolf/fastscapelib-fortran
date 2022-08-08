@@ -259,35 +259,11 @@ subroutine StreamPowerLaw ()
     nGSStreamPowerLaw=0
 
     lake_sediment=0.d0
+    dh=0.d0
+    hp=h
 
     do while (err.gt.tol.and.nGSStreamPowerLaw.lt.99)
       nGSStreamPowerLaw=nGSStreamPowerLaw+1
-      ! guess/update the elevation at t+Δt (k)
-      hp=h
-
-       ! calculate erosion/deposition at each node
-      dh=ht-hp
-
-      ! sum the erosion in stack order
-      do ij=nn,1,-1
-        ijk=stack(ij)
-        ijr=rec(ijk)
-        if (ijr.ne.ijk) then
-          dh(ijk)=dh(ijk)-(ht(ijk)-hp(ijk))
-          if (lake_sill(ijk).eq.ijk) then
-            if (dh(ijk).le.0.d0) then
-              lake_sediment(ijk)=0.d0
-            else
-              lake_sediment(ijk)=dh(ijk)
-            endif
-          endif
-          dh(ijk)=dh(ijk)+(ht(ijk)-hp(ijk))
-          dh(ijr)=dh(ijr)+dh(ijk)
-        else
-          lake_sediment(ijk)=dh(ijk)
-        endif
-      enddo
-
       where (bounds_bc)
         elev=ht
       elsewhere
@@ -379,11 +355,42 @@ subroutine StreamPowerLaw ()
         endif
 
         err=sqrt(sum((h-hp)**2)/nn)
+
+      ! guess/update the elevation at t+Δt (k)
+      hp=h
+
+       ! calculate erosion/deposition at each node
+      dh=ht-hp
+
+      ! sum the erosion in stack order
+      do ij=nn,1,-1
+        ijk=stack(ij)
+        ijr=rec(ijk)
+        if (ijr.ne.ijk) then
+          dh(ijk)=dh(ijk)-(ht(ijk)-hp(ijk))
+          if (lake_sill(ijk).eq.ijk) then
+            if (dh(ijk).le.0.d0) then
+              lake_sediment(ijk)=0.d0
+            else
+              lake_sediment(ijk)=min(dh(ijk),lake_water_volume(ijk))
+              dh(ijk) = dh(ijk)-lake_water_volume(ijk) !remove the sediment that is going to be deposited in the lake from the dh stack
+              if (dh(ijk)<0.d0) dh(ijk)=0.d0
+            endif
+          endif
+          dh(ijk)=dh(ijk)+(ht(ijk)-hp(ijk))
+          dh(ijr)=dh(ijr)+dh(ijk)
+        else
+          lake_sediment(ijk)=dh(ijk)
+        endif
+      enddo
+
+
         if (maxval(g).lt.tiny(g)) err=0.d0
         if (nGSStreamPowerLaw.eq.99) print*,'Beware Gauss-Siedel scheme not convergent'
       enddo
 
       b=min(h,b)
+
 
       do ij=1,nn
         if (lake_sill(ij).ne.0) then
@@ -399,6 +406,7 @@ subroutine StreamPowerLaw ()
       Sedflux=ht-h
       !if (runMarine) where (h.lt.sealevel) Sedflux=0.d0
       ! update rock type
+
       where ( h > sealevel .and. h==b) rock_type = 1 !basement
       where ( h > sealevel .and. h>b) rock_type = 2 !basement
       where ( h > sealevel .and. erate < 0 ) rock_type = 2 !cont. sediments should be captured by above
