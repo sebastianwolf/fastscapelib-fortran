@@ -1,5 +1,5 @@
 #include "Error.fpp"
-subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,ierr)
+subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,sealevel,ierr)
 
   ! subroutine to compute and remove local inima by recomputing the receiver connectivty
   ! using Guillaume Cordonnier s algorithm as helped by Benoit Bovy and debuged with Jean Braun
@@ -35,7 +35,7 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,ierr)
 
   integer nx,ny
   integer stack(nx*ny),rec(nx*ny),ndon(nx*ny),donor(8,nx*ny)
-  double precision h(nx*ny),length(nx*ny),dx,dy
+  double precision h(nx*ny),length(nx*ny),dx,dy,sealevel
   logical bc(nx*ny)
 
   integer, dimension(:), allocatable :: basins,outlets,tree,basin_stack
@@ -62,6 +62,8 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,ierr)
   allocate (conn_basins(nconn_max,2),conn_nodes(nconn_max,2),conn_weights(nconn_max))
   allocate(active_nodes(nn))
   active_nodes=.not.bc
+
+  where (h < sealevel) active_nodes = .false.
 
   nlocmin=0
   do k=1,nn

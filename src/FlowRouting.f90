@@ -26,7 +26,7 @@ subroutine FlowRouting (ierr)
   call find_stack (rec, don, ndon, nn, catch0, stack, catch)
 
   ! removes local minima
-  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,ierr);FSCAPE_CHKERR(ierr)
+  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr);FSCAPE_CHKERR(ierr)
 
   ! computes receiver and stack information for mult-direction flow
   call find_mult_rec (h,rec,stack,hwater,mrec,mnrec,mwrec,mlrec,mstack,nx,ny,dx,dy,p,p_mfd_exp, &
@@ -68,7 +68,7 @@ subroutine FlowRoutingSingleFlowDirection (ierr)
   call find_stack (rec, don, ndon, nn, catch0, stack, catch)
 
   ! removes local minima
-  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,ierr);FSCAPE_CHKERR(ierr)
+  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr);FSCAPE_CHKERR(ierr)
 
   ! find hwater
 
