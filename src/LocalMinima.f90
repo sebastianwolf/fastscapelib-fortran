@@ -1,4 +1,4 @@
-#include "Error.fpp"
+!#include "Error.fpp"
 subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,sealevel,ierr)
 
   ! subroutine to compute and remove local inima by recomputing the receiver connectivty
@@ -95,7 +95,7 @@ subroutine LocalMinima (stack,rec,bc,ndon,donor,h,length,nx,ny,dx,dy,sealevel,ie
   allocate (tree(nbasins-1))
   tree_size=0
 
-  call mst_kruskal(conn_weights,conn_basins,nbasins,nconn,tree,tree_size,ierr);FSCAPE_CHKERR(ierr)
+  call mst_kruskal(conn_weights,conn_basins,nbasins,nconn,tree,tree_size,ierr); 
 
   allocate (sills(nbasins,2))
   allocate (basin_stack(nbasins))
@@ -361,7 +361,7 @@ subroutine mst_kruskal(conn_weights, conn_basins, nbasins, nconn, mstree, mstree
   mstree_size = 0
 
   ! sort edges
-  call loc_min_3_indexx (nconn,conn_weights,sort_id,ierr);FSCAPE_CHKERR(ierr)
+  call loc_min_3_indexx (nconn,conn_weights,sort_id,ierr); 
   !print*,'weights',conn_weights(sort_id)
 
   allocate (parent(nbasins),rank(nbasins))
@@ -951,7 +951,7 @@ end subroutine loc_min_3_find_stack_recurs
 
 subroutine loc_min_3_indexx(n,arr,indx,ierr)
 
-  use FastScapeErrorCodes
+  !use FastScapeErrorCodes
 
   implicit none
 
@@ -1035,9 +1035,9 @@ subroutine loc_min_3_indexx(n,arr,indx,ierr)
     indx(j)=indxt
     jstack=jstack+2
 
-    if(jstack.gt.NSTACK) then
-      FSCAPE_RAISE_MESSAGE('loc_min_3_indexx error: NSTACK too small',ERR_Default,ierr);FSCAPE_CHKERR(ierr)
-    end if
+    !if(jstack.gt.NSTACK) then
+    !  FSCAPE_RAISE_MESSAGE('loc_min_3_indexx error: NSTACK too small',ERR_Default,ierr); 
+    !end if
 
     if(ir-i+1.ge.j-l)then
       istack(jstack)=ir

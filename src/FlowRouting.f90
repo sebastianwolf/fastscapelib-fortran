@@ -1,4 +1,4 @@
-#include "Error.fpp"
+!#include "Error.fpp"
 !--------------------------------------------------------------------------------------------
 subroutine FlowRouting (ierr)
 
@@ -26,11 +26,11 @@ subroutine FlowRouting (ierr)
   call find_stack (rec, don, ndon, nn, catch0, stack, catch)
 
   ! removes local minima
-  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr);FSCAPE_CHKERR(ierr)
+  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr); 
 
   ! computes receiver and stack information for mult-direction flow
   call find_mult_rec (h,rec,stack,hwater,mrec,mnrec,mwrec,mlrec,mstack,nx,ny,dx,dy,p,p_mfd_exp, &
-    bounds_i1, bounds_i2, bounds_j1, bounds_j2, bounds_xcyclic, bounds_ycyclic,ierr);FSCAPE_CHKERR(ierr)
+    bounds_i1, bounds_i2, bounds_j1, bounds_j2, bounds_xcyclic, bounds_ycyclic,ierr); 
 
   ! compute lake depth
   lake_depth = hwater - h
@@ -68,7 +68,7 @@ subroutine FlowRoutingSingleFlowDirection (ierr)
   call find_stack (rec, don, ndon, nn, catch0, stack, catch)
 
   ! removes local minima
-  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr);FSCAPE_CHKERR(ierr)
+  call LocalMinima (stack,rec,bounds_bc,ndon,don,h,length,nx,ny,dx,dy,sealevel,ierr); 
 
   ! find hwater
 
@@ -149,7 +149,7 @@ end subroutine FlowAccumulationSingleFlowDirection
 subroutine find_mult_rec (h,rec0,stack0,water,rec,nrec,wrec,lrec,stack,nx,ny,dx,dy,p,p_mfd_exp, &
   bounds_i1, bounds_i2, bounds_j1, bounds_j2, bounds_xcyclic, bounds_ycyclic, ierr)
 
-  use FastScapeErrorCodes
+  !use FastScapeErrorCodes
 
   implicit none
   ! subroutine to find multiple receiver information
@@ -298,9 +298,9 @@ subroutine find_mult_rec (h,rec0,stack0,water,rec,nrec,wrec,lrec,stack,nx,ny,dx,
 
   deallocate (ndon,don,vis,parse,h0)
 
-  if (nstack.ne.nn) then
-    FSCAPE_RAISE_MESSAGE('Find_mult_rec: error in stack',ERR_Default,ierr);FSCAPE_CHKERR(ierr)
-  end if
+  !if (nstack.ne.nn) then
+  !  FSCAPE_RAISE_MESSAGE('Find_mult_rec: error in stack',ERR_Default,ierr); 
+  !end if
 
   return
 

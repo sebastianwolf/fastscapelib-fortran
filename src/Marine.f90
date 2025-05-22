@@ -1,4 +1,4 @@
-#include "Error.fpp"
+!#include "Error.fpp"
 subroutine Marine(ierr)
 
   ! Marine transport component
@@ -116,7 +116,7 @@ subroutine Marine(ierr)
 
   ! silt and sand coupling diffusion in ocean
   call SiltSandCouplingDiffusion (h,Fmix,flux*Fs,flux*(1.d0-Fs), &
-  nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc,ierr);FSCAPE_CHKERR(ierr)
+  nx,ny,dx,dy,dt,sealevel,layer,kdsea1,kdsea2,nGSMarine,flag,bounds_ibc,ierr); 
 
   ! pure silt and sand during deposition/erosion
   dh1=((h-ht)*Fmix+layer*(Fmix-Fmixt))*(1.d0-poro1)
@@ -197,7 +197,7 @@ end subroutine Marine
 subroutine SiltSandCouplingDiffusion (h,f,Q1,Q2,nx,ny,dx,dy,dt, &
   sealevel,L,kdsea1,kdsea2,niter,flag,ibc,ierr)
 
-  use FastScapeErrorCodes
+  !use FastScapeErrorCodes
 
   implicit none
 
@@ -512,8 +512,9 @@ subroutine SiltSandCouplingDiffusion (h,f,Q1,Q2,nx,ny,dx,dy,dt, &
     !print*,'niter',niter,minval(h-hp),sum(h-hp)/nn,maxval(h-hp),err1
 
     if (niter.gt.1000) then
-      FSCAPE_RAISE_MESSAGE('Marine error: Multi-lithology diffusion not converging; decrease time step',ERR_NotConverged,ierr)
-      FSCAPE_CHKERR(ierr)
+      !FSCAPE_RAISE_MESSAGE('Marine error: Multi-lithology diffusion not converging; decrease time step',ERR_NotConverged,ierr)
+       print*,'Marine error: Multi-lithology diffusion not converging; decrease time step'
+       stop
     endif
 
     ! end of iteration
@@ -696,8 +697,9 @@ if (marine_aggradation_rate < 0.d0) then
         write(*,'(a,f8.4)')'percent of deposited sed: ',vol_tester/vol * 100
         write(*,'(a,f13.3,a,f13.3)')'fill_level = ',fill_level,', sealevel = ',sealevel
         write(*,'(a,f8.4)')'sum sedflux: ',sum(sedflux_shore)
-        FSCAPE_RAISE_MESSAGE('Marine error: Mass conserving filling with available sediment not converged',ERR_NotConverged,ierr)
-        FSCAPE_CHKERR(ierr)
+        print*,'Marine error: Mass conserving filling with available sediment not converged'
+        stop
+         
       end if
 
     end do while_loop

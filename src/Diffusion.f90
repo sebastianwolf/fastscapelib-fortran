@@ -1,4 +1,4 @@
-#include "Error.fpp"
+!#include "Error.fpp"
 subroutine Diffusion (ierr)
 
   ! subroutine to solve the diffusion equation by ADI
@@ -81,7 +81,7 @@ subroutine Diffusion (ierr)
     inf(nx)=-factxm
     f(nx)=zintp(nx,j)+factyp*zintp(nx,j+1)-(factyp+factym)*zintp(nx,j)+factym*zintp(nx,j-1)
     endif
-  call tridag (inf,diag,sup,f,res,nx,ierr);FSCAPE_CHKERR(ierr)
+  call tridag (inf,diag,sup,f,res,nx,ierr); 
     do i=1,nx
     zint(i,j)=res(i)
     enddo
@@ -133,7 +133,7 @@ subroutine Diffusion (ierr)
     inf(ny)=-factym
     f(ny)=zint(i,ny)+factxp*zint(i+1,ny)-(factxp+factxm)*zint(i,ny)+factxm*zint(i-1,ny)
     endif
-  call tridag (inf,diag,sup,f,res,ny,ierr);FSCAPE_CHKERR(ierr)
+  call tridag (inf,diag,sup,f,res,ny,ierr); 
     do j=1,ny
     zintp(i,j)=res(j)
     enddo
@@ -165,7 +165,7 @@ end subroutine Diffusion
 
       SUBROUTINE tridag(a,b,c,r,u,n,ierr)
 
-      use FastScapeErrorCodes
+      !use FastScapeErrorCodes
       implicit none
 
       INTEGER n
@@ -176,10 +176,8 @@ end subroutine Diffusion
       integer,intent(inout):: ierr
       allocate (gam(n))
 
-      if(b(1).eq.0.d0) then
-        FSCAPE_RAISE_MESSAGE('Tridag error b(1)=0: cannot solve system',ERR_TridiagNotSolvable,ierr);FSCAPE_CHKERR(ierr)
-      end if
-      !if(b(1).eq.0.d0) stop 'in tridag'
+
+      if(b(1).eq.0.d0) stop 'in tridag'
 
 ! first pass
 
@@ -189,9 +187,8 @@ do 11 j=2,n
   gam(j)=c(j-1)/bet
   bet=b(j)-a(j)*gam(j)
   if(bet.eq.0.) then
-    FSCAPE_RAISE_MESSAGE('Tridag error bet=0: cannot solve system',ERR_TridiagNotSolvable,ierr);FSCAPE_CHKERR(ierr)
-    ! print*,'tridag failed'
-    ! stop
+    print*,'tridag failed'
+    stop
   endif
   u(j)=(r(j)-a(j)*u(j-1))/bet
   11    continue

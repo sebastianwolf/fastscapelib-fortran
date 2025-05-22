@@ -152,7 +152,7 @@
 ! writes debugging information to the default output
 
 ! -----------------------------------------------------------------------------------------
-#include "Error.fpp"
+!#include "Error.fpp"
 
 subroutine FastScape_Init(ierr)
 
@@ -180,19 +180,18 @@ subroutine FastScape_Setup(ierr)
 
   ierr=0
 
-  if (nx.eq.0) then
-    FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be zero',ERR_ParameterInvalid,ierr)
-  end if
-  if (nx.le.0) then
-     FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be negative',ERR_ParameterOutOfRange,ierr)
-  end if
-  if (ny.eq.0) then
-     FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be zero',ERR_ParameterInvalid,ierr)
-  end if
-  if (ny.le.0) then
-    FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be negative',ERR_ParameterOutOfRange,ierr)
-  end if
-  FSCAPE_CHKERR(ierr) ! Call FSCAPE_CHKERR() so that all possible exceptions above will be displayed
+  !if (nx.eq.0) then
+  !  FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be zero',ERR_ParameterInvalid,ierr)
+  !end if
+  !if (nx.le.0) then
+  !   FSCAPE_RAISE_MESSAGE('FastScape_Setup(): nx cannot be negative',ERR_ParameterOutOfRange,ierr)
+  !end if
+  !if (ny.eq.0) then
+  !   FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be zero',ERR_ParameterInvalid,ierr)
+  !end if
+  !if (ny.le.0) then
+  !  FSCAPE_RAISE_MESSAGE('FastScape_Setup(): ny cannot be negative',ERR_ParameterOutOfRange,ierr)
+  !end if
 
   call SetUp()
 
@@ -265,11 +264,11 @@ subroutine FastScape_Execute_Step(ierr)
   if (runSPL) then
     call cpu_time (time_in)
     if (SingleFlowDirection) then
-      call FlowRoutingSingleFlowDirection (ierr);FSCAPE_CHKERR(ierr)
+      call FlowRoutingSingleFlowDirection (ierr); 
       call FlowAccumulationSingleFlowDirection ()
       call StreamPowerLawSingleFlowDirection ()
     else
-      call FlowRouting (ierr);FSCAPE_CHKERR(ierr)
+      call FlowRouting (ierr); 
       call FlowAccumulation ()
       call StreamPowerLaw ()
     endif
@@ -279,7 +278,7 @@ subroutine FastScape_Execute_Step(ierr)
 
   if (runDiffusion) then
     call cpu_time (time_in)
-    call Diffusion (ierr);FSCAPE_CHKERR(ierr)
+    call Diffusion (ierr); 
     call cpu_time (time_out)
     timeDiffusion = timeDiffusion + time_out-time_in
   endif
@@ -287,9 +286,9 @@ subroutine FastScape_Execute_Step(ierr)
   if (runMarine) then
      call cpu_time (time_in)
      if (.not. use_marine_aggradation) then
-       call Marine (ierr);FSCAPE_CHKERR(ierr)
+       call Marine (ierr); 
      else
-       call MarineAggradation(ierr);FSCAPE_CHKERR(ierr)
+       call MarineAggradation(ierr); 
      end if
      call cpu_time (time_out)
      timeMarine = timeMarine + time_out-time_in
@@ -320,9 +319,7 @@ subroutine FastScape_Init_H(hp,ierr)
   double precision, intent(inout), dimension(*) :: hp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call InitH(hp)
 
@@ -342,9 +339,7 @@ subroutine FastScape_Init_F(Fmixp,ierr)
   double precision, intent(inout), dimension(*) :: Fmixp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call InitF (Fmixp)
 
@@ -364,9 +359,7 @@ subroutine FastScape_Copy_H(hp,ierr)
   double precision, intent(inout), dimension(*) :: hp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyH(hp)
 
@@ -386,9 +379,7 @@ subroutine FastScape_Copy_Basement(bp,ierr)
   double precision, intent(inout), dimension(*) :: bp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyBasement(bp)
 
@@ -408,9 +399,7 @@ subroutine FastScape_Copy_Total_Erosion (etotp,ierr)
   double precision, intent(inout), dimension(*) :: etotp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyEtot(etotp)
 
@@ -430,9 +419,7 @@ subroutine FastScape_Copy_Drainage_Area (ap,ierr)
   double precision, intent(inout), dimension(*) :: ap
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyArea(ap)
 
@@ -452,9 +439,7 @@ subroutine FastScape_Copy_Erosion_Rate (eratep,ierr)
   double precision, intent(inout), dimension(*) :: eratep
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyERate(eratep)
 
@@ -474,9 +459,7 @@ subroutine FastScape_Copy_Chi (chip,ierr)
   double precision, intent(inout), dimension(*) :: chip
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyChi(chip)
 
@@ -496,9 +479,7 @@ subroutine FastScape_Copy_Slope (slopep,ierr)
   double precision, intent(inout), dimension(*) :: slopep
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopySlope(slopep)
 
@@ -519,9 +500,7 @@ subroutine FastScape_Copy_Curvature (curvaturep,ierr)
   double precision, intent(inout), dimension(*) :: curvaturep
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyCurvature(curvaturep)
 
@@ -541,9 +520,7 @@ subroutine FastScape_Copy_Catchment (catchp,ierr)
   double precision, intent(inout), dimension(*) :: catchp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyCatchment (catchp)
 
@@ -563,9 +540,7 @@ subroutine FastScape_Copy_F(Fmixp,ierr)
   double precision, intent(inout), dimension(*) :: Fmixp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyF(Fmixp)
 
@@ -585,9 +560,7 @@ subroutine FastScape_Copy_Lake_Depth(Lp,ierr)
   double precision, intent(inout), dimension(*) :: Lp
 
   ierr=0
-  if (.not.setup_has_been_run) then
-    FSCAPE_RAISE(ERR_SetupNotRun,ierr);FSCAPE_CHKERR(ierr)
-  end if
+ 
 
   call CopyLakeDepth(Lp)
 

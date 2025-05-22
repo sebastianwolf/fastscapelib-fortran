@@ -1,4 +1,4 @@
-#include "Error.fpp"
+!#include "Error.fpp"
 program FastScapeRUN
 
 implicit none
@@ -19,18 +19,18 @@ ny=201
 nn=nx*ny
 allocate (h(nn),b(nn),u(nn),ux(nn),uy(nn),etot(nn),erate(nn),a(nn),chi(nn),catchment(nn),sedflux(nn),sedflux_shore(nn))
 
-call FastScape_Init(ierr);FSCAPE_CHKERR_ABORT(ierr)
-call FastScape_Set_NX_NY (nx,ny,ierr);FSCAPE_CHKERR_ABORT(ierr)
-call FastScape_Setup(ierr);FSCAPE_CHKERR_ABORT(ierr)
-call FastScape_Use_Marine_Aggradation(.true.,ierr);FSCAPE_CHKERR_ABORT(ierr)
-call FastScape_Set_Marine_Aggradation_rate(-0.0001d0,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Init(ierr); 
+call FastScape_Set_NX_NY (nx,ny,ierr); 
+call FastScape_Setup(ierr); 
+call FastScape_Use_Marine_Aggradation(.true.,ierr); 
+call FastScape_Set_Marine_Aggradation_rate(-0.0001d0,ierr); 
 xl=200.d3
 yl=200.d3
 dx=xl/(nx-1)
 dy=yl/(ny-1)
-call FastScape_Set_XL_YL (xl,yl,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_XL_YL (xl,yl,ierr); 
 dt=1.d3
-call FastScape_Set_DT (dt,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_DT (dt,ierr); 
 allocate (kf1(nn),kd1(nn))
 kf1=1.d-5
 kf2=2.d-5
@@ -46,7 +46,7 @@ kd2 = 0.d0
 g1=1.d0
 g2=1.d0
 preci_rate = 1.d0 ! precipitation rate
-call FastScape_Set_Erosional_Parameters (kf1,kf2,m,n,kd1,kd2,g1,g2,p_flow_dir_exp,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_Erosional_Parameters (kf1,kf2,m,n,kd1,kd2,g1,g2,p_flow_dir_exp,ierr); 
 !call FastScape_Set_Precipitation_Rate (preci_rate)
 sealevel = 0.d0
 !poro1 = 0.63d0
@@ -59,9 +59,9 @@ kds1 = 2.d2
 kds2 = 1.d2
 z1 = 1.d3
 z2 = 1.d3
-call FastScape_Set_Marine_Parameters (sealevel, poro1, poro2, z1, z2, ratio, L, kds1, kds2,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_Marine_Parameters (sealevel, poro1, poro2, z1, z2, ratio, L, kds1, kds2,ierr); 
 
-call FastScape_Set_BC (1010,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_BC (1010,ierr); 
 
 allocate (field(nn,2))
 call random_number (h)
@@ -78,7 +78,7 @@ call random_number (h)
     enddo
   enddo
 
-call FastScape_Init_H (h,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Init_H (h,ierr); 
 
 do j=1,ny
     do i=1,nx
@@ -92,25 +92,25 @@ do j=1,ny
     enddo
 enddo
 u = 0.d0
-call FastScape_Set_U (u,ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Set_U (u,ierr); 
 
 nstep=500
 nfreq=100 ! frequency of output
-call FastScape_View(ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_View(ierr); 
 istep=nstep
 
 call cpu_time (time_in)
   do while (istep.le.nstep)
-  call FastScape_Execute_Step (ierr);FSCAPE_CHKERR_ABORT(ierr)
-  call FastScape_Get_Step (istep,ierr);FSCAPE_CHKERR_ABORT(ierr)
+  call FastScape_Execute_Step (ierr); 
+  call FastScape_Get_Step (istep,ierr); 
     if (mod(istep,nfreq)==0) then
-    call FastScape_Copy_H (h,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Basement (b,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Total_Erosion (etot,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Erosion_Rate (erate,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Drainage_Area (a,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Chi (chi,ierr);FSCAPE_CHKERR_ABORT(ierr)
-    call FastScape_Copy_Catchment (catchment,ierr);FSCAPE_CHKERR_ABORT(ierr)
+    call FastScape_Copy_H (h,ierr); 
+    call FastScape_Copy_Basement (b,ierr); 
+    call FastScape_Copy_Total_Erosion (etot,ierr); 
+    call FastScape_Copy_Erosion_Rate (erate,ierr); 
+    call FastScape_Copy_Drainage_Area (a,ierr); 
+    call FastScape_Copy_Chi (chi,ierr); 
+    call FastScape_Copy_Catchment (catchment,ierr); 
     !call FastScape_Copy_Sediment_Flux(sedflux)
     !call FastScape_Copy_Sediment_Flux_Shore(sedflux_shore)
     print*,istep
@@ -121,11 +121,11 @@ call cpu_time (time_in)
     print*,'a',minval(a),sum(a)/nn,maxval(a)
     print*,'chi',minval(chi),sum(chi)/nn,maxval(chi)
     print*,'catchment',minval(catchment),sum(catchment)/nn,maxval(catchment)
-    call FastScape_Debug(ierr);FSCAPE_CHKERR_ABORT(ierr)
+    call FastScape_Debug(ierr); 
     field(:,1)=etot
     field(:,2)=erate
-    call FastScape_VTK (chi, 2.d0,ierr);FSCAPE_CHKERR_ABORT(ierr) ! if value > 0, elevation plus value is written to file. If value <0, basement and sealevel + value is written to file.
-    call FastScape_VTK (erate, -2.d0,ierr);FSCAPE_CHKERR_ABORT(ierr) ! if value > 0, elevation plus value is written to file. If value <0, basement and sealevel + value is written to file.
+    call FastScape_VTK (chi, 2.d0,ierr);  ! if value > 0, elevation plus value is written to file. If value <0, basement and sealevel + value is written to file.
+    call FastScape_VTK (erate, -2.d0,ierr);  ! if value > 0, elevation plus value is written to file. If value <0, basement and sealevel + value is written to file.
     !field(:,3)=sedflux
     !field(:,4)=sedflux_shore
     !call VTK (h,b,2,field,nx,ny,dx,dy,istep)
@@ -134,7 +134,7 @@ call cpu_time (time_in)
 call cpu_time (time_out)
 print*,'Total run time',time_out-time_in
 
-call FastScape_Destroy (ierr);FSCAPE_CHKERR_ABORT(ierr)
+call FastScape_Destroy (ierr); 
 
 deallocate (u,h,b,a,etot,erate,chi,catchment,sedflux,sedflux_shore,field)
 deallocate (kf1,kd1)

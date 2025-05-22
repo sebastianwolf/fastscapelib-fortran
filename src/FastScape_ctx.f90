@@ -1,12 +1,12 @@
 
-#include "Error.fpp"
+!#include "Error.fpp"
 
 module FastScapeContext
 
   ! Context module for FastScape api
   ! should not be accessed or changed
   ! see API for name of routines and externally accessible variables
-  use FastScapeErrorCodes
+  ! use FastScapeErrorCodes
 
   implicit none
 
