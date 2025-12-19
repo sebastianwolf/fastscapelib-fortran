@@ -20,11 +20,11 @@ subroutine Advect3d_lag (ierr)
   ! Useful if dt is variable
   advect_dt=totaltime-totaltime_before_advection
 
-  if (step == 0) call cloud_setup(ierr)
+  if (.not. advection_cloud_setup) call cloud_setup(ierr)
 
   if ( (mod(step+1,advect_every_step)==0) ) then
 
-   write(*,'(a,x,i6,x,f9.3,x,f13.3,x,f13.3)') 'Advection 3d step,advect_dt',step,advect_dt,totaltime,totaltime_before_advection
+  !  write(*,'(a,x,i6,x,f9.3,x,f13.3,x,f13.3)') 'Advection 3d step,advect_dt',step,advect_dt,totaltime,totaltime_before_advection
   totaltime_before_advection=totaltime
 
   write(*,*) '================= start advection ======================'
@@ -226,6 +226,7 @@ subroutine cloud_setup (ierr)
   !cl%b      = cl%h ! not correct in case of restart
   !cl%etot   = 0.d0
   cl%erate  = 0.d0
+  advection_cloud_setup = .true.
   
   return
 

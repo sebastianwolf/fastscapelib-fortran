@@ -174,6 +174,7 @@ module FastScapeContext
 
     runSPL = .false.
     runAdvect = .false.
+    advection_cloud_setup = .false.
     runLagToEul = .false.
     runDiffusion = .false.
     runStrati = .false.
