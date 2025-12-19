@@ -5,13 +5,13 @@ ifneq ($(findstring geodyn,$(HOSTNAME)),)
   F90_OPTIONS = -O -Mfreeform -Mdclchk -Mstandard -Mpreprocess
 else
   F90 = gfortran
-  CC = gcc-10
-  F90_OPTIONS = -ffree-form -ffree-line-length-none -fimplicit-none -fbounds-check -Wall -Wno-unused-dummy-argument -cpp -fall-intrinsics -fallow-argument-mismatch -fconvert=big-endian # needed to remove -std=f2008 -ffree-line-length-none is required for long macros
+  CC = gcc
+  F90_OPTIONS = -fopenmp -ffree-form -ffree-line-length-none -fimplicit-none -fbounds-check -Wall -Wno-unused-dummy-argument -cpp -fall-intrinsics -fallow-argument-mismatch -fconvert=big-endian -framework Accelerate# needed to remove -std=f2008 -ffree-line-length-none is required for long macros
 endif
 
 ON_WINDOWS = f
 
-FASTSCAPE_OBJ = FastScapeErrorCodes.o FastScape_ctx.o FastScape_api.o StreamPowerLaw.o Diffusion.o LocalMinima.o Advect.o Marine.o VTK.o FlowRouting.o Strati.o Uplift.o TerrainDerivatives.o
+FASTSCAPE_OBJ = FastScapeErrorCodes.o FastScape_ctx.o FastScape_api.o StreamPowerLaw.o Diffusion.o LocalMinima.o Advect.o Marine.o VTK.o FlowRouting.o Strati.o Uplift.o TerrainDerivatives.o Advect3d_lag.o 
 
 .f90.o:
 	$(F90) -c $(F90_OPTIONS) $*.f90

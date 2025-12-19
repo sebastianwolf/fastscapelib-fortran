@@ -10,12 +10,29 @@ module FastScapeContext
 
   implicit none
 
+  type cloud
+    double precision, dimension(:), allocatable  :: x,y,h,b,etot,erate
+    integer, dimension(:), allocatable           :: icx,icy
+    integer, dimension(:), allocatable           :: cell
+    integer, dimension(:), allocatable           :: closest_node
+    logical, dimension(:), allocatable           :: active
+    integer                                      :: npcl, nleaving
+    integer, dimension(:), allocatable           :: ip_leaving
+  end type cloud 
+
+  type FEgrid
+    double precision, dimension(:), allocatable         :: x,y
+    integer, dimension(:), allocatable                  :: nn
+    integer, dimension(:,:), allocatable                :: icon,pair
+    integer                                             :: nmax, nmin
+  end type FEgrid
+
   integer :: nx, ny, nn, nstack
   integer :: bounds_ibc
   integer :: bounds_i1, bounds_i2, bounds_j1, bounds_j2
   logical :: bounds_xcyclic, bounds_ycyclic
   logical, dimension(:), allocatable :: bounds_bc
-  integer :: step
+  integer :: step, advect_every_step
   integer :: nGSStreamPowerLaw, nGSMarine
   logical :: setup_has_been_run, enforce_marine_mass_cons, low_sealevel_at_shallow_sea, use_marine_aggradation
   double precision, target, dimension(:), allocatable :: h,u,vx,vy,length,a,erate,etot,catch,catch0,b,precip,kf,kd
@@ -23,14 +40,16 @@ module FastScapeContext
   double precision, target, dimension(:), allocatable :: g
   double precision, target, dimension(:), allocatable :: dh_dep, sedflux_shore
   double precision, target, dimension(:), allocatable :: p_mfd_exp
-  double precision, dimension(:,:), pointer, contiguous :: h2, vx2, vy2, etot2, b2
+  double precision, dimension(:,:), pointer, contiguous :: h2, vx2, vy2, u2, etot2, b2
   double precision :: xl, yl, dt, kfsed, m, n, kdsed, g1, g2, p
+  double precision :: totaltime,totaltime_before_advection
   double precision :: sealevel, poro1, poro2, zporo1, zporo2, ratio, layer, kdsea1, kdsea2
   integer, dimension(:), allocatable :: stack, ndon, rec
   integer, dimension(:,:), allocatable :: don
   integer, dimension(:), allocatable :: rock_type ! 1 is basement, 2 is cont. sed, 3 is marine sed.
-  logical :: runSPL, runAdvect, runDiffusion, runStrati, runUplift, runMarine
-  real :: timeSPL, timeAdvect, timeDiffusion, timeStrati, timeUplift, timeMarine
+  logical :: runSPL, runAdvect, runDiffusion, runStrati, runUplift, runMarine, runLagToEul
+  real :: timeSPL, timeDiffusion, timeStrati, timeUplift, timeMarine
+  double precision :: timeAdvect3d, timeAdvect, timeEulToLag
   double precision, dimension(:,:), allocatable :: reflector
   double precision, dimension(:,:,:), allocatable :: fields
   integer nfield, nfreq, nreflector, nfreqref, ireflector
@@ -43,6 +62,47 @@ module FastScapeContext
   double precision :: atol_SPL
   double precision :: marine_aggradation_rate
 
+  type (cloud)     :: cl
+  type (FEgrid)    :: grid
+
+  ! == array_append 
+  interface array_affix
+     subroutine array_affix_dp(a,a_append)
+     implicit none
+     double precision,allocatable,dimension(:):: a,a_append
+     end subroutine array_affix_dp
+     
+     subroutine array_affix_i(a,a_append)
+     implicit none
+     integer,allocatable,dimension(:):: a,a_append
+     end subroutine array_affix_i
+
+     subroutine array_affix_b(a,a_append)
+     implicit none
+     logical,allocatable,dimension(:):: a,a_append
+     end subroutine array_affix_b
+  end interface array_affix
+
+  ! == array_trim ( to avoid multiple definition with fantom)
+  interface array_cut
+     subroutine array_cut_dp(array,mask)
+       implicit none
+       double precision,allocatable :: array(:)
+       logical :: mask(:)
+     end subroutine array_cut_dp
+   
+     subroutine array_cut_i(array,mask)
+       implicit none
+       integer,allocatable :: array(:)
+       logical :: mask(:)
+     end subroutine array_cut_i
+
+     subroutine array_cut_b(array,mask)
+       implicit none
+       logical, allocatable :: array(:)
+       logical :: mask(:)
+     end subroutine array_cut_b
+  end interface array_cut
 
   contains
 
@@ -52,9 +112,13 @@ module FastScapeContext
     nx=0
     ny=0
     step=0
+    advect_every_step=1
+    totaltime=0.
+    totaltime_before_advection=0.
     setup_has_been_run = .false.
     timeSPL = 0.
     timeAdvect = 0.
+    timeEulToLag = 0.
     timeDiffusion = 0.
     timeStrati = 0.
     timeMarine = 0.
@@ -83,7 +147,9 @@ module FastScapeContext
     b2(1:nx,1:ny) => b
     vx2(1:nx,1:ny) => vx
     vy2(1:nx,1:ny) => vy
+    u2(1:nx,1:ny) => u
     etot2(1:nx,1:ny) => etot
+    
 
     call SetBC (1111)
     call random_number (h)
@@ -108,6 +174,7 @@ module FastScapeContext
 
     runSPL = .false.
     runAdvect = .false.
+    runLagToEul = .false.
     runDiffusion = .false.
     runStrati = .false.
     runMarine = .false.
@@ -389,6 +456,18 @@ module FastScapeContext
 
   !---------------------------------------------------------------
 
+  subroutine SetADVECTEVERYSTEP (every_step)
+
+    integer, intent(in) :: every_step
+
+    advect_every_step = every_step
+
+    return
+
+  end subroutine SetADVECTEVERYSTEP
+
+  !---------------------------------------------------------------
+
   subroutine SetNXNY (nnx,nny)
 
     integer, intent(in) :: nnx,nny
@@ -549,6 +628,7 @@ module FastScapeContext
     if (runSPL) write (*,*) 'SPL:',timeSPL
     if (runDiffusion) write (*,*) 'Diffusion:',timeDiffusion
     if (runMarine) write (*,*) 'Marine:',timeMarine
+    if (runLagToEul)write (*,*) 'Advection is using eul 2 lag'
     if (runAdvect) write (*,*) 'Advection:',timeAdvect
     if (runUplift) write (*,*) 'Uplift:',timeUplift
     if (runStrati) write (*,*) 'Strati:',timeStrati
@@ -940,6 +1020,16 @@ module FastScapeContext
 
     end subroutine SetEnforceMarineMassCons
 
+    subroutine SetRunLagToEul (runLagToEulp)
+
+    logical, intent(in) :: runLagToEulp
+
+    runLagToEul = runLagToEulp
+
+    return
+
+    end subroutine SetRunLagToEul
+
     !---------------------------------------------------------------
 
     subroutine SetCorrectShallowSealevel (low_sealevel_at_shallow_seap)
@@ -1009,5 +1099,321 @@ module FastScapeContext
     return
 
     end subroutine SetMarineAggradationRate
+ !---------------------------------------------------------------
 
+    subroutine compute_SF3 (npts,pair,nsurface,xtemp,ytemp,xc,yc,rcut,Nnpts)
+    
+    implicit none
+    
+    !==============================================================================!
+    !==============================================================================!
+    ! arguments
+    
+    integer npts,nsurface
+    integer pair(npts)
+    double precision xtemp(nsurface),ytemp(nsurface)
+    double precision xc,yc,rcut
+    double precision Nnpts(npts)
+    double precision xeval,yeval
+    
+    !==============================================================================!
+    ! other variables
+    
+    integer mpl,jp,i,j,info
+    integer, dimension(:), allocatable :: ipvt1
+    double precision, dimension(:,:), allocatable :: Am1B,P
+    double precision, dimension(:,:), allocatable :: A
+    double precision, dimension(:), allocatable :: W
+    double precision delta,x_j,y_j,dist,xij,yij
+
+    xeval=xc
+    yeval=yc
+    
+    delta=1.d-10
+    
+    !if (npts<mpl) stop 'npts<mpl'
+    
+    mpl=6
+    
+    if (npts <= mpl ) mpl=3 
+    
+    allocate(Am1B(mpl,npts))
+    allocate(P(npts,mpl))
+    allocate(A(mpl,mpl))
+    allocate(W(npts))
+    allocate(ipvt1(mpl))  
+    
+    !==============================
+    !=====[ compute P matrix ]=====
+    !==============================
+    do i=1,npts 
+       jp=pair(i)
+       x_j=xtemp(jp)
+       y_j=ytemp(jp)
+       P(i,1)=1.d0
+       P(i,2)=x_j-xc
+       P(i,3)=y_j-yc
+       if(mpl>3) then
+       P(i,4)=(x_j-xc)**2
+       P(i,5)=(x_j-xc)*(y_j-yc)
+       P(i,6)=(y_j-yc)**2
+       end if
+    end do
+   
+    !==============================
+    !=====[ compute W matrix ]=====
+    !==============================
+    do i=1,npts
+       jp=pair(i)
+       xij=abs(xc-xtemp(jp))
+       yij=abs(yc-ytemp(jp))
+       dist=sqrt(xij**2+yij**2) 
+       W(i)=kernel(dist,rcut)
+    end do
+    
+    !==============================
+    !=====[ compute B matrix ]=====
+    !==============================
+    do i=1,mpl
+       do j=1,npts
+          Am1B(i,j)=P(j,i)*W(j) 
+       end do
+    end do
+   
+    !==============================
+    !=====[ compute A matrix ]=====
+    !==============================
+    A=matmul(Am1B,P)
+   
+    !==============================
+    !=====[ compute A^{-1}.B ]=====
+    !==============================
+    call dgetrf ( mpl, mpl, A, mpl, ipvt1, info ) ; if (info/=0) stop 'pb dgetrf Am1B'
+    call dgetrs ( 'N', mpl, npts, A, mpl, ipvt1, Am1B, mpl, INFO ) ; if (info/=0) stop 'pb dgetrs Am1B'
+    
+    !=========================
+    !=====[ compute Nnpts ]=====
+    !=========================
+    
+    Nnpts=Am1B(1,:) 
+    
+    deallocate(Am1B)
+    deallocate(P)
+    deallocate(A)
+    deallocate(W)
+    deallocate(ipvt1)  
+    
+    end subroutine compute_SF3
+
+    !---------------------------------------------------------------
+
+    function kernel (r,rcut)
+    implicit none
+    double precision kernel
+    double precision r,rcut
+    double precision x
+    
+    x=r/rcut
+    
+    if (x.le.0.5d0) then
+       kernel=4.d0*(0.16666666666666666666666666666666667d0-x**2+x**3)
+    else
+       kernel=1.3333333333333333333333333333333333333333d0*(1.d0-x)**3
+    end if
+    
+    end function kernel
+
+    !---------------------------------------------------------------
+
+    function kernel_p (r,rcut)
+    implicit none
+    double precision kernel_p
+    double precision r,rcut
+    double precision x
+    
+    x=r/rcut
+    
+    if (x.le.0.5d0) then
+       kernel_p=4.d0/rcut*(-2.d0*x+3.d0*x**2)
+    else
+       kernel_p=-4.d0/rcut*(1.d0-x)**2
+    end if
+    
+    end function kernel_p
+
+    !---------------------------------------------------------------
   end module FastScapeContext
+
+
+
+    !this subroutine is a wrapper of a=[a,b], dealing with allocation etc.
+    !For some new compilers, the matlab-like syntax a=[a,b] can be directly used.
+    subroutine array_affix_dp(a,a_append)
+      implicit none
+      double precision,allocatable,dimension(:):: a,a_append
+      double precision,allocatable,dimension(:):: a_new
+      integer:: n1,n2,nnew
+      
+      if (.not. allocated(a)) stop 'a not allocated!'
+      if (.not. allocated(a_append)) stop 'a_append not allocated!'
+      
+      n1 = size(a)
+      n2 = size(a_append)
+      nnew = n1+n2
+      allocate(a_new(nnew))
+      
+      !a_new = [a,a_append]
+      a_new(1:n1)=a
+      a_new((n1+1):(n1+n2))=a_append
+      
+      
+      deallocate(a)
+      allocate(a(nnew))
+      a = a_new
+      
+      deallocate(a_new)
+    end subroutine array_affix_dp
+
+    !---------------------------------------------------------------
+    
+    subroutine array_affix_i(a,a_append)
+      implicit none
+      integer,allocatable,dimension(:):: a,a_append
+      integer,allocatable,dimension(:):: a_new
+      integer:: n1,n2,nnew
+      
+      if (.not. allocated(a)) stop 'a not allocated!'
+      if (.not. allocated(a_append)) stop 'a_append not allocated!'
+      
+      n1 = size(a)
+      n2 = size(a_append)
+      nnew = n1+n2
+      allocate(a_new(nnew))
+      
+      !a_new = [a,a_append]
+      a_new(1:n1)=a
+      a_new((n1+1):(n1+n2))=a_append
+      
+      deallocate(a)
+      allocate(a(nnew))
+      a = a_new
+      
+      deallocate(a_new)
+    end subroutine array_affix_i
+
+    !---------------------------------------------------------------
+    
+    subroutine array_affix_b(a,a_append)
+      implicit none
+      logical,allocatable,dimension(:):: a,a_append
+      logical,allocatable,dimension(:):: a_new
+      integer:: n1,n2,nnew
+      
+      if (.not. allocated(a)) stop 'a not allocated!'
+      if (.not. allocated(a_append)) stop 'a_append not allocated!'
+      
+      n1 = size(a)
+      n2 = size(a_append)
+      nnew = n1+n2
+      allocate(a_new(nnew))
+      
+      !a_new = [a,a_append]
+      a_new(1:n1)=a
+      a_new((n1+1):(n1+n2))=a_append
+      
+      deallocate(a)
+      allocate(a(nnew))
+      a = a_new
+      
+      deallocate(a_new)
+    end subroutine array_affix_b
+
+    !---------------------------------------------------------------
+
+    subroutine array_cut_dp(array,mask)
+      implicit none
+      double precision,allocatable :: array(:)
+      logical :: mask(:)
+      integer :: nnew
+      integer :: counter
+      integer :: i
+      double precision,allocatable :: swap(:)
+    
+      nnew = count(mask)
+      allocate(swap(nnew))
+    
+      counter=0
+      do i=1,size(array)
+         if (mask(i)) then
+            counter=counter+1
+            swap(counter) = array(i)
+         endif
+      enddo
+    
+      deallocate(array)
+      allocate(array(nnew))
+    
+      array = swap
+    
+      deallocate(swap)
+    
+    end subroutine array_cut_dp
+  
+    subroutine array_cut_i(array,mask)
+      implicit none
+      integer,allocatable :: array(:)
+      logical :: mask(:)
+      integer :: nnew
+      integer :: counter
+      integer :: i
+      integer,allocatable :: swap(:)
+    
+      nnew = count(mask)
+      allocate(swap(nnew))
+    
+      counter=0
+      do i=1,size(array)
+         if (mask(i)) then
+            counter=counter+1
+            swap(counter) = array(i)
+         endif
+      enddo
+    
+      deallocate(array)
+      allocate(array(nnew))
+    
+      array = swap
+    
+      deallocate(swap)
+    
+    end subroutine array_cut_i
+  
+    subroutine array_cut_b(array,mask)
+      implicit none
+      logical, allocatable :: array(:)
+      logical :: mask(:)
+      integer :: nnew
+      integer :: counter
+      integer :: i
+      logical, allocatable :: swap(:)
+    
+      nnew = count(mask)
+      allocate(swap(nnew))
+    
+      counter=0
+      do i=1,size(array)
+         if (mask(i)) then
+            counter=counter+1
+            swap(counter) = array(i)
+         endif
+      enddo
+    
+      deallocate(array)
+      allocate(array(nnew))
+    
+      array = swap
+    
+      deallocate(swap)
+    
+    end subroutine array_cut_b
+

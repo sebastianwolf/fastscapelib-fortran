@@ -240,17 +240,25 @@ end subroutine FastScape_View
 subroutine FastScape_Execute_Step(ierr)
 
   use FastScapeContext
+  use omp_lib ! check OpenMP status
 
   implicit none
 
   integer, intent(out):: ierr
   real :: time_in, time_out
+  double precision, dimension(:), allocatable :: h_before_sp, b_before_sp, etot_before_sp, erate_before_sp
+
 
   ierr=0
 
+totaltime = totaltime + dt
   if (runAdvect) then
     call cpu_time (time_in)
-    call Advect ()
+    if (runLagToEul) then
+      call Advect3d_lag (ierr)
+    else 
+      call Advect ()
+    endif
     call cpu_time (time_out)
     timeAdvect = timeAdvect + time_out-time_in
   endif
@@ -260,6 +268,14 @@ subroutine FastScape_Execute_Step(ierr)
     call Uplift()
     call cpu_time (time_out)
     timeUplift = timeUplift + time_out-time_in
+  endif
+
+ if (runLagToEul) then
+    allocate(h_before_sp(nn),b_before_sp(nn),etot_before_sp(nn),erate_before_sp(nn))
+    h_before_sp     = h
+    b_before_sp     = b
+    etot_before_sp  = etot
+    erate_before_sp = erate
   endif
 
   if (runSPL) then
@@ -300,6 +316,14 @@ subroutine FastScape_Execute_Step(ierr)
      call Run_Strati ()
      call cpu_time (time_out)
      timeStrati = timeStrati + time_out-time_in
+  endif
+
+  if (runLagToEul)  then
+     call cpu_time (time_in)
+     call EulToLag (h_before_sp,b_before_sp,etot_before_sp,erate_before_sp,ierr)
+     deallocate(h_before_sp,b_before_sp,etot_before_sp,erate_before_sp)
+     call cpu_time (time_out)
+     timeEulToLag = timeEulToLag + time_out-time_in
   endif
 
   step=step+1
@@ -597,6 +621,25 @@ end subroutine FastScape_Copy_Lake_Depth
 
 !--------------------------------------------------------------------------
 
+subroutine FastScape_Set_ADVECT_EVERY_STEP (every_step,ierr)
+
+  use FastScapeContext
+
+  implicit none
+
+  integer, intent(out):: ierr
+  integer, intent(in) :: every_step
+
+  ierr=0
+
+  call SetADVECTEVERYSTEP (every_step)
+
+  return
+
+end subroutine FastScape_Set_ADVECT_EVERY_STEP
+
+!--------------------------------------------------------------------------
+
 subroutine FastScape_Set_NX_NY (nnx,nny,ierr)
 
   use FastScapeContext
@@ -843,6 +886,29 @@ end subroutine FastScape_Set_H
 
 !--------------------------------------------------------------------------
 
+subroutine FastScape_Set_H_withEul2LagMapping(hafter,ierr)
+
+  use FastScapeContext
+
+  implicit none
+
+  integer, intent(out):: ierr
+  double precision, dimension(nn) :: hbefore
+  double precision, intent(in), dimension(*) :: hafter
+  ierr=0
+  if (runLagToEul)  then
+    call CopyH(hbefore)
+    call SetH(hafter)
+    call EulToLag (hbefore,b,etot,erate,ierr)
+  else
+    call SetH(hafter)
+  endif
+  
+  return
+
+end subroutine FastScape_Set_H_withEul2LagMapping
+!--------------------------------------------------------------------------
+
 subroutine FastScape_Set_All_Layers (dhp,ierr)
 
   use FastScapeContext
@@ -1070,6 +1136,24 @@ call SetEnforceMarineMassCons (enforce_marine_mass_consp)
 return
 
 end subroutine FastScape_Set_Enforce_Marine_Mass_cons
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_RunLagToEul (runLagToEulp,ierr)
+
+use FastScapeContext
+
+implicit none
+
+integer, intent(out):: ierr
+logical, intent(in) :: runLagToEulp
+
+ierr=0
+
+call SetRunLagToEul (runLagToEulp)
+
+return
+
+end subroutine FastScape_Set_RunLagToEul
 
 !--------------------------------------------------------------------------
 
