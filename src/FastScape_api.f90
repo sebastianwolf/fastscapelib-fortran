@@ -944,6 +944,29 @@ subroutine FastScape_Set_Basement(bp,ierr)
   return
 
 end subroutine FastScape_Set_Basement
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Basement_withEul2LagMapping(bafter,ierr)
+
+  use FastScapeContext
+
+  implicit none
+
+  integer, intent(out):: ierr
+  double precision, dimension(nn) :: bbefore
+  double precision, intent(in), dimension(*) :: bafter
+  ierr=0
+  if (runLagToEul)  then
+    call CopyBasement(bbefore)
+    call SetBasement(bafter)
+    call EulToLag (h,bbefore,etot,erate,ierr)
+  else
+    call SetBasement(bafter)
+  endif
+  
+  return
+
+end subroutine FastScape_Set_Basement_withEul2LagMapping
 
 !--------------------------------------------------------------------------
 
@@ -1117,6 +1140,30 @@ call SetCumulativeErosion (etotp)
 return
 
 end subroutine FastScape_Set_Cumulative_Erosion
+
+!--------------------------------------------------------------------------
+
+subroutine FastScape_Set_Cumulative_Erosion_withEul2LagMapping(etotafter,ierr)
+
+  use FastScapeContext
+
+  implicit none
+
+  integer, intent(out):: ierr
+  double precision, dimension(nn) :: etotbefore
+  double precision, intent(in), dimension(*) :: etotafter
+  ierr=0
+  if (runLagToEul)  then
+    call CopyEtot(etotbefore)
+    call SetCumulativeErosion(etotafter)
+    call EulToLag (h,b,etotbefore,erate,ierr)
+  else
+    call SetCumulativeErosion(etotafter)
+  endif
+  
+  return
+
+end subroutine FastScape_Set_Cumulative_Erosion_withEul2LagMapping
 
 !--------------------------------------------------------------------------
 
