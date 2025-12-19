@@ -47,7 +47,7 @@ module FastScapeContext
   integer, dimension(:), allocatable :: stack, ndon, rec
   integer, dimension(:,:), allocatable :: don
   integer, dimension(:), allocatable :: rock_type ! 1 is basement, 2 is cont. sed, 3 is marine sed.
-  logical :: runSPL, runAdvect, runDiffusion, runStrati, runUplift, runMarine, runLagToEul
+  logical :: runSPL, runAdvect, runDiffusion, runStrati, runUplift, runMarine, runLagToEul, advection_cloud_setup
   real :: timeSPL, timeDiffusion, timeStrati, timeUplift, timeMarine
   double precision :: timeAdvect3d, timeAdvect, timeEulToLag
   double precision, dimension(:,:), allocatable :: reflector
