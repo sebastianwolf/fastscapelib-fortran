@@ -3,7 +3,7 @@
 COMPILER = "intel"
 
 ifeq ($(COMPILER),"intel")
-  INTELWRAPPER = /opt/custom/intel/oneapi/mpi/2021.14/bin
+  INTELWRAPPER = /opt/intel/oneapi/mpi/2021.18/bin
   F90      = $(INTELWRAPPER)/mpif90
   #FC_FLAGS = -c -f90=ifort -qopenmp -m64 -w -fpp -mkl=sequential
   FC_FLAGS  = -f90=ifx -qopenmp -m64 -assume byterecl -w -fpp -mkl=sequential -diag-disable=10448 -fPIE -static_mpi
